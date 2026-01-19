@@ -6,6 +6,8 @@ type SimulationRequest struct {
 	EnvelopeXdr string `json:"envelope_xdr"`
 	// XDR encoded TransactionResultMeta (historical data)
 	ResultMetaXdr string `json:"result_meta_xdr"`
+	// Snapshot of Ledger Entries (Key XDR -> Entry XDR) necessary for replay
+	LedgerEntries map[string]string `json:"ledger_entries,omitempty"`
 	// XDR encoded LedgerHeader (optional, for context)
 	// LedgerHeaderXdr string `json:"ledger_header_xdr,omitempty"`
 }
