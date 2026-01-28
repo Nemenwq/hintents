@@ -3,36 +3,53 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/dotandev/hintents/internal/gasmodel"
+	"github.com/dotandev/hintents/internal/logger"
 	"github.com/dotandev/hintents/internal/rpc"
 	"github.com/spf13/cobra"
 )
 
 var (
-	networkFlag string
-	rpcURLFlag  string
+	networkFlag    string
+	rpcURLFlag     string
+	gasModelFlag   string
 )
 
 var debugCmd = &cobra.Command{
 	Use:   "debug <transaction-hash>",
 	Short: "Debug a failed Soroban transaction",
-	Long: `Fetch a transaction envelope from the Stellar network and prepare it for simulation.
+	Long: `Fetch and prepare a transaction for simulation.
 
-Example:
-  erst debug 5c0a1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
-  erst debug --network testnet <tx-hash>`,
+With optional custom gas model to match private network configurations.
+
+Examples:
+  erst debug <tx-hash>
+  erst debug --network testnet <tx-hash>
+  erst debug --gas-model ./custom-gas-model.json <tx-hash>`,
 	Args: cobra.ExactArgs(1),
 	PreRunE: func(cmd *cobra.Command, args []string) error {
-		// Validate network flag
 		switch rpc.Network(networkFlag) {
 		case rpc.Testnet, rpc.Mainnet, rpc.Futurenet:
-			return nil
 		default:
-			return fmt.Errorf("invalid network: %s. Must be one of: testnet, mainnet, futurenet", networkFlag)
+			return fmt.Errorf("invalid network: %s", networkFlag)
 		}
+
+		if gasModelFlag != "" {
+			model, err := gasmodel.ParseGasModel(gasModelFlag)
+			if err != nil {
+				return fmt.Errorf("failed to parse gas model: %w", err)
+			}
+			validation := model.ValidateStrict()
+			if !validation.Valid {
+				logger.Logger.Warn(validation.ErrorsAsString())
+				return fmt.Errorf("gas model validation failed")
+			}
+			logger.Logger.Info("Gas model loaded", "network", model.NetworkID)
+		}
+		return nil
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		txHash := args[0]
-
 		var client *rpc.Client
 		if rpcURLFlag != "" {
 			client = rpc.NewClientWithURL(rpcURLFlag, rpc.Network(networkFlag))
@@ -40,26 +57,41 @@ Example:
 			client = rpc.NewClient(rpc.Network(networkFlag))
 		}
 
-		fmt.Printf("Debugging transaction: %s\n", txHash)
+		fmt.Printf("Debugging: %s\n", txHash)
 		fmt.Printf("Network: %s\n", networkFlag)
 		if rpcURLFlag != "" {
-			fmt.Printf("RPC URL: %s\n", rpcURLFlag)
+			fmt.Printf("RPC: %s\n", rpcURLFlag)
+		}
+		if gasModelFlag != "" {
+			fmt.Printf("Gas Model: %s\n", gasModelFlag)
 		}
 
-		// Fetch transaction details
 		resp, err := client.GetTransaction(cmd.Context(), txHash)
 		if err != nil {
-			return fmt.Errorf("failed to fetch transaction: %w", err)
+			return fmt.Errorf("fetch failed: %w", err)
 		}
 
-		fmt.Printf("Transaction fetched successfully. Envelope size: %d bytes\n", len(resp.EnvelopeXdr))
+		fmt.Printf("Transaction fetched. Envelope: %d bytes\n", len(resp.EnvelopeXdr))
+
+		if gasModelFlag != "" {
+			model, _ := gasmodel.ParseGasModel(gasModelFlag)
+			fmt.Printf("\nCustom Gas Model:\n")
+			fmt.Printf("  Network: %s\n", model.NetworkID)
+			fmt.Printf("  Costs: %d (CPU: %d, Host: %d, Ledger: %d)\n",
+				len(model.AllCosts()),
+				len(model.CPUCosts),
+				len(model.HostCosts),
+				len(model.LedgerCosts),
+			)
+		}
 		return nil
 	},
 }
 
 func init() {
-	debugCmd.Flags().StringVarP(&networkFlag, "network", "n", string(rpc.Mainnet), "Stellar network to use (testnet, mainnet, futurenet)")
-	debugCmd.Flags().StringVar(&rpcURLFlag, "rpc-url", "", "Custom Horizon RPC URL to use")
-
+	debugCmd.Flags().StringVarP(&networkFlag, "network", "n", string(rpc.Mainnet), "Network (testnet, mainnet, futurenet)")
+	debugCmd.Flags().StringVar(&rpcURLFlag, "rpc-url", "", "Custom RPC URL")
+	debugCmd.Flags().StringVar(&gasModelFlag, "gas-model", "", "Custom gas model JSON file")
 	rootCmd.AddCommand(debugCmd)
 }
+

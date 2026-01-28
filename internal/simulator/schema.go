@@ -1,5 +1,9 @@
 package simulator
 
+import (
+	"github.com/dotandev/hintents/internal/gasmodel"
+)
+
 // SimulationRequest is the JSON object passed to the Rust binary via Stdin
 type SimulationRequest struct {
 	// XDR encoded TransactionEnvelope
@@ -8,6 +12,9 @@ type SimulationRequest struct {
 	ResultMetaXdr string `json:"result_meta_xdr"`
 	// Snapshot of Ledger Entries (Key XDR -> Entry XDR) necessary for replay
 	LedgerEntries map[string]string `json:"ledger_entries,omitempty"`
+	// Custom gas model for the simulation (optional)
+	// If provided, overrides default gas costs
+	GasModel *gasmodel.GasModel `json:"gas_model,omitempty"`
 	// XDR encoded LedgerHeader (optional, for context)
 	// LedgerHeaderXdr string `json:"ledger_header_xdr,omitempty"`
 }
