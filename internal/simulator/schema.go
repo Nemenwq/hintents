@@ -9,13 +9,33 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dotandev/hintents/internal/authtrace"
 	_ "modernc.org/sqlite"
 )
 
+// SimulationRequest is the JSON object passed to the Rust binary via Stdin
 type SimulationRequest struct {
 	EnvelopeXdr   string            `json:"envelope_xdr"`
 	ResultMetaXdr string            `json:"result_meta_xdr"`
 	LedgerEntries map[string]string `json:"ledger_entries,omitempty"`
+
+	// Path to local WASM file for local replay (optional)
+	WasmPath *string `json:"wasm_path,omitempty"`
+	// Mock arguments for local replay (optional, JSON array of strings)
+	MockArgs *[]string `json:"mock_args,omitempty"`
+	// Enable profiling
+	Profile bool `json:"profile,omitempty"`
+
+	// Advanced options
+	AuthTraceOpts *AuthTraceOptions      `json:"auth_trace_opts,omitempty"`
+	CustomAuthCfg map[string]interface{} `json:"custom_auth_config,omitempty"`
+}
+
+type AuthTraceOptions struct {
+	Enabled              bool `json:"enabled"`
+	TraceCustomContracts bool `json:"trace_custom_contracts"`
+	CaptureSigDetails    bool `json:"capture_sig_details"`
+	MaxEventDepth        int  `json:"max_event_depth,omitempty"`
 }
 
 type CategorizedEvent struct {
@@ -34,12 +54,14 @@ type SecurityViolation struct {
 }
 
 type SimulationResponse struct {
-	Status             string              `json:"status"`
-	Error              string              `json:"error,omitempty"`
-	Events             []string            `json:"events,omitempty"`
-	CategorizedEvents  []CategorizedEvent  `json:"categorized_events,omitempty"`
-	Logs               []string            `json:"logs,omitempty"`
-	SecurityViolations []SecurityViolation `json:"security_violations,omitempty"`
+	Status             string               `json:"status"` // "success" or "error"
+	Error              string               `json:"error,omitempty"`
+	Events             []string             `json:"events,omitempty"`
+	CategorizedEvents  []CategorizedEvent   `json:"categorized_events,omitempty"`
+	Logs               []string             `json:"logs,omitempty"`
+	SecurityViolations []SecurityViolation  `json:"security_violations,omitempty"`
+	Flamegraph         string               `json:"flamegraph,omitempty"` // SVG flamegraph
+	AuthTrace          *authtrace.AuthTrace `json:"auth_trace,omitempty"`
 }
 
 // Session represents a stored simulation result
@@ -167,4 +189,3 @@ func (db *DB) SearchSessions(filters SearchFilters) ([]Session, error) {
 
 	return sessions, nil
 }
-
