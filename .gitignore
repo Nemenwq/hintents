@@ -32,6 +32,7 @@ coverage.out
 
 # --- Tools/Artifacts ---
 ishus.py
+create_phase9.py
 .gemini/
 .idea/
 .vscode/
