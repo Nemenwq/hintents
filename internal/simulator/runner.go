@@ -1,22 +1,32 @@
+// Copyright 2025 Erst Users
+// SPDX-License-Identifier: Apache-2.0
+
 package simulator
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
+	"github.com/dotandev/hintents/internal/errors"
 	"github.com/dotandev/hintents/internal/logger"
 	"github.com/dotandev/hintents/internal/telemetry"
 	"github.com/dotandev/hintents/internal/trace"
 	"go.opentelemetry.io/otel/attribute"
 )
 
+// RunnerInterface defines the contract for simulator execution
+type RunnerInterface interface {
+	Run(req *SimulationRequest) (*SimulationResponse, error)
+}
+
 // Runner handles the execution of the Rust simulator binary
 type Runner struct {
+// ConcreteRunner handles the execution of the Rust simulator binary
+type ConcreteRunner struct {
 	BinaryPath string
 }
 
@@ -63,13 +73,15 @@ func (r *Runner) RunWithTrace(ctx context.Context, req *SimulationRequest, txHas
 
 	return resp, executionTrace, nil
 }
+// Compile-time check to ensure Runner implements RunnerInterface
+var _ RunnerInterface = (*Runner)(nil)
 
 // NewRunner creates a new simulator runner.
 // It checks for the binary in common locations.
-func NewRunner() (*Runner, error) {
+func NewRunner() (*ConcreteRunner, error) {
 	// 1. Check environment variable
 	if envPath := os.Getenv("ERST_SIMULATOR_PATH"); envPath != "" {
-		return &Runner{BinaryPath: envPath}, nil
+		return &ConcreteRunner{BinaryPath: envPath}, nil
 	}
 
 	// 2. Check current directory (for Docker/Production)
@@ -77,22 +89,22 @@ func NewRunner() (*Runner, error) {
 	if err == nil {
 		localPath := filepath.Join(cwd, "erst-sim")
 		if _, err := os.Stat(localPath); err == nil {
-			return &Runner{BinaryPath: localPath}, nil
+			return &ConcreteRunner{BinaryPath: localPath}, nil
 		}
 	}
 
 	// 3. Check development path (assuming running from sdk root)
 	devPath := filepath.Join("simulator", "target", "release", "erst-sim")
 	if _, err := os.Stat(devPath); err == nil {
-		return &Runner{BinaryPath: devPath}, nil
+		return &ConcreteRunner{BinaryPath: devPath}, nil
 	}
 
 	// 4. Check global PATH
 	if path, err := exec.LookPath("erst-sim"); err == nil {
-		return &Runner{BinaryPath: path}, nil
+		return &ConcreteRunner{BinaryPath: path}, nil
 	}
 
-	return nil, fmt.Errorf("simulator binary 'erst-sim' not found. Please build it or set ERST_SIMULATOR_PATH")
+	return nil, errors.WrapSimulatorNotFound("Please build it or set ERST_SIMULATOR_PATH")
 }
 
 // Run executes the simulation with the given request
@@ -102,6 +114,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	span.SetAttributes(attribute.String("simulator.binary_path", r.BinaryPath))
 	defer span.End()
 
+func (r *ConcreteRunner) Run(req *SimulationRequest) (*SimulationResponse, error) {
 	logger.Logger.Debug("Starting simulation", "binary", r.BinaryPath)
 
 	// Serialize Request
@@ -111,7 +124,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	if err != nil {
 		span.RecordError(err)
 		logger.Logger.Error("Failed to marshal simulation request", "error", err)
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, errors.WrapMarshalFailed(err)
 	}
 
 	span.SetAttributes(attribute.Int("request.size_bytes", len(inputBytes)))
@@ -132,7 +145,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 		execSpan.End()
 		span.RecordError(err)
 		logger.Logger.Error("Simulator execution failed", "error", err, "stderr", stderr.String())
-		return nil, fmt.Errorf("simulator execution failed: %w, stderr: %s", err, stderr.String())
+		return nil, errors.WrapSimulationFailed(err, stderr.String())
 	}
 	execSpan.End()
 
@@ -150,7 +163,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 		unmarshalSpan.End()
 		span.RecordError(err)
 		logger.Logger.Error("Failed to unmarshal simulation response", "error", err, "output", stdout.String())
-		return nil, fmt.Errorf("failed to unmarshal response: %w, output: %s", err, stdout.String())
+		return nil, errors.WrapUnmarshalFailed(err, stdout.String())
 	}
 	unmarshalSpan.End()
 
@@ -161,7 +174,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	if resp.Status == "error" {
 		span.SetAttributes(attribute.String("simulation.error", resp.Error))
 		logger.Logger.Error("Simulation logic error", "error", resp.Error)
-		return nil, fmt.Errorf("simulation error: %s", resp.Error)
+		return nil, errors.WrapSimulationLogicError(resp.Error)
 	}
 
 	logger.Logger.Info("Simulation completed successfully")
