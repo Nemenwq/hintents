@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -136,8 +137,12 @@ Local WASM Replay Mode:
 		client := rpc.NewClient(rpc.Network(networkFlag))
 		horizonURL := ""
 		if rpcURLFlag != "" {
-			client = rpc.NewClientWithURL(rpcURLFlag, rpc.Network(networkFlag))
-			horizonURL = rpcURLFlag
+			urls := strings.Split(rpcURLFlag, ",")
+			for i := range urls {
+				urls[i] = strings.TrimSpace(urls[i])
+			}
+			client = rpc.NewClientWithURLs(urls, rpc.Network(networkFlag))
+			horizonURL = urls[0]
 		} else {
 			switch rpc.Network(networkFlag) {
 			case rpc.Testnet:
