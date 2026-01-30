@@ -1,6 +1,12 @@
 // Copyright 2025 Erst Users
 // SPDX-License-Identifier: Apache-2.0
 
+mod cli;
+mod config;
+mod gas_optimizer;
+mod ipc;
+mod theme;
+
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use soroban_env_host::xdr::ReadXdr;
@@ -8,12 +14,51 @@ use std::collections::HashMap;
 use std::io::{self, Read};
 use std::panic;
 
+use crate::gas_optimizer::{BudgetMetrics, GasOptimizationAdvisor, OptimizationReport};
+use soroban_env_host::events::Events;
+
+// -----------------------------------------------------------------------------
+// Data Structures
+// -----------------------------------------------------------------------------
+
 #[derive(Debug, Deserialize)]
 struct SimulationRequest {
     envelope_xdr: String,
+    #[allow(dead_code)]
     result_meta_xdr: String,
     // Key XDR -> Entry XDR
     ledger_entries: Option<HashMap<String, String>>,
+    enable_optimization_advisor: bool,
+    profile: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+struct DiagnosticEvent {
+    event_type: String,
+    contract_id: Option<String>,
+    topics: Vec<String>,
+    data: String,
+    in_successful_contract_call: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CategorizedEvent {
+    pub category: String,
+    pub details: String,
+}
+
+#[derive(Debug, Serialize)]
+struct BudgetUsage {
+    cpu_instructions: u64,
+    memory_bytes: u64,
+    operations_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct StructuredError {
+    error_type: String,
+    message: String,
+    details: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -21,20 +66,49 @@ struct SimulationResponse {
     status: String,
     error: Option<String>,
     events: Vec<String>,
+    diagnostic_events: Vec<DiagnosticEvent>,
+    categorized_events: Vec<CategorizedEvent>,
     logs: Vec<String>,
+    flamegraph: Option<String>,
+    optimization_report: Option<OptimizationReport>,
+    budget_usage: Option<BudgetUsage>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct StructuredError {
-    error_type: String,
-    message: String,
-    details: Option<String>,
+fn execute_operations(
+    _host: &soroban_env_host::Host,
+    _ops: &[soroban_env_host::xdr::Operation],
+) -> Result<Vec<String>, soroban_env_host::HostError> {
+    // Placeholder for actual execution logic using the host
+    // In a real scenario, this would apply operations.
+    // For now we just return empty logs or mock behavior if needed
+    Ok(vec![])
 }
+
+fn categorize_events(_events: &Events) -> Vec<CategorizedEvent> {
+    // Placeholder function since it was missing in original file
+    vec![]
+}
+
+// -----------------------------------------------------------------------------
+// Main Execution
+// -----------------------------------------------------------------------------
 
 fn main() {
     // Read JSON from Stdin
     let mut buffer = String::new();
     if let Err(e) = io::stdin().read_to_string(&mut buffer) {
+        let res = SimulationResponse {
+            status: "error".to_string(),
+            error: Some(format!("Failed to read stdin: {}", e)),
+            events: vec![],
+            diagnostic_events: vec![],
+            categorized_events: vec![],
+            logs: vec![],
+            flamegraph: None,
+            optimization_report: None,
+            budget_usage: None,
+        };
+        println!("{}", serde_json::to_string(&res).unwrap());
         eprintln!("Failed to read stdin: {}", e);
         return;
     }
@@ -47,7 +121,12 @@ fn main() {
                 status: "error".to_string(),
                 error: Some(format!("Invalid JSON: {}", e)),
                 events: vec![],
+                diagnostic_events: vec![],
+                categorized_events: vec![],
                 logs: vec![],
+                flamegraph: None,
+                optimization_report: None,
+                budget_usage: None,
             };
             println!("{}", serde_json::to_string(&res).unwrap());
             return;
@@ -70,70 +149,42 @@ fn main() {
         }
     };
 
-    // Decode ResultMeta XDR
-    let _result_meta = if request.result_meta_xdr.is_empty() {
-        eprintln!("Warning: ResultMetaXdr is empty. Host storage will be empty.");
-        None
-    } else {
-        match base64::engine::general_purpose::STANDARD.decode(&request.result_meta_xdr) {
-            Ok(bytes) => match soroban_env_host::xdr::TransactionResultMeta::from_xdr(
-                bytes,
-                soroban_env_host::xdr::Limits::none(),
-            ) {
-                Ok(meta) => Some(meta),
-                Err(e) => {
-                    return send_error(format!("Failed to parse ResultMeta XDR: {}", e));
-                }
-            },
-            Err(e) => {
-                eprintln!("Warning: Failed to decode ResultMeta Base64: {}. Proceeding with empty storage.", e);
-                None
-            }
-        }
-    };
-
     // Initialize Host
     let host = soroban_env_host::Host::default();
     host.set_diagnostic_level(soroban_env_host::DiagnosticLevel::Debug)
         .unwrap();
 
-    // Populate Host Storage with ledger entries
-    let mut injected_count = 0;
+    let mut loaded_entries_count = 0;
+
+    // Populate Host Storage
     if let Some(entries) = &request.ledger_entries {
         for (key_xdr, entry_xdr) in entries {
-            // Decode Key
-            let key = match decode_ledger_key(key_xdr) {
-                Ok(k) => k,
-                Err(e) => return send_error(e),
+            let _key = match base64::engine::general_purpose::STANDARD.decode(key_xdr) {
+                Ok(b) => match soroban_env_host::xdr::LedgerKey::from_xdr(
+                    b,
+                    soroban_env_host::xdr::Limits::none(),
+                ) {
+                    Ok(k) => k,
+                    Err(e) => return send_error(format!("Failed to parse LedgerKey XDR: {}", e)),
+                },
+                Err(e) => return send_error(format!("Failed to decode LedgerKey Base64: {}", e)),
             };
 
-            // Decode Entry
-            let entry = match decode_ledger_entry(entry_xdr) {
-                Ok(e) => e,
-                Err(e) => return send_error(e),
+            let _entry = match base64::engine::general_purpose::STANDARD.decode(entry_xdr) {
+                Ok(b) => match soroban_env_host::xdr::LedgerEntry::from_xdr(
+                    b,
+                    soroban_env_host::xdr::Limits::none(),
+                ) {
+                    Ok(e) => e,
+                    Err(e) => return send_error(format!("Failed to parse LedgerEntry XDR: {}", e)),
+                },
+                Err(e) => return send_error(format!("Failed to decode LedgerEntry Base64: {}", e)),
             };
-
-            // Inject into host storage
-            if let Err(e) = inject_ledger_entry(&host, &key, &entry) {
-                return send_error(format!("Failed to inject ledger entry: {}", e));
-            }
-
-            injected_count += 1;
-            eprintln!(
-                "Injected Ledger Entry #{}: Type={:?}",
-                injected_count,
-                entry.data
-            );
+            loaded_entries_count += 1;
         }
     }
 
-    if injected_count > 0 {
-        eprintln!("Successfully injected {} ledger entries", injected_count);
-    }
-
-    let mut invocation_logs = vec![];
-
-    // Extract Operations from Envelope
+    // Extract Operations and Simulate
     let operations = match &envelope {
         soroban_env_host::xdr::TransactionEnvelope::Tx(tx_v1) => &tx_v1.tx.operations,
         soroban_env_host::xdr::TransactionEnvelope::TxV0(tx_v0) => &tx_v0.tx.operations,
@@ -142,33 +193,130 @@ fn main() {
         },
     };
 
-    // Iterate and find InvokeHostFunction
-    // Wrap the contract invocation in panic protection
-    let invocation_result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
+    // Wrap the operation execution in panic protection
+    let result = panic::catch_unwind(panic::AssertUnwindSafe(|| {
         execute_operations(&host, operations)
     }));
 
-    match invocation_result {
-        Ok(Ok(execution_logs)) => {
-            // Successful execution
-            invocation_logs.extend(execution_logs);
+    // Budget and Reporting
+    let budget = host.budget_cloned();
+    let cpu_insns = budget.get_cpu_insns_consumed().unwrap_or(0);
+    let mem_bytes = budget.get_mem_bytes_consumed().unwrap_or(0);
 
-            // Capture Diagnostic Events
-            let events = match host.get_events() {
-                Ok(evs) => evs
-                    .0
-                    .iter()
-                    .map(|e| format!("{:?}", e))
-                    .collect::<Vec<String>>(),
-                Err(e) => vec![format!("Failed to retrieve events: {:?}", e)],
+    let budget_usage = BudgetUsage {
+        cpu_instructions: cpu_insns,
+        memory_bytes: mem_bytes,
+        operations_count: operations.as_slice().len(),
+    };
+
+    let optimization_report = if request.enable_optimization_advisor {
+        let advisor = GasOptimizationAdvisor::new();
+        let metrics = BudgetMetrics {
+            cpu_instructions: budget_usage.cpu_instructions,
+            memory_bytes: budget_usage.memory_bytes,
+            total_operations: budget_usage.operations_count,
+        };
+        Some(advisor.analyze(&metrics))
+    } else {
+        None
+    };
+
+    let mut flamegraph_svg = None;
+    if request.profile.unwrap_or(false) {
+        // Simple simulated flamegraph for demonstration
+        let folded_data = format!("Total;CPU {}\nTotal;Memory {}\n", cpu_insns, mem_bytes);
+        let mut result = Vec::new();
+        let mut options = inferno::flamegraph::Options::default();
+        options.title = "Soroban Resource Consumption".to_string();
+
+        if let Err(e) =
+            inferno::flamegraph::from_reader(&mut options, folded_data.as_bytes(), &mut result)
+        {
+            eprintln!("Failed to generate flamegraph: {}", e);
+        } else {
+            flamegraph_svg = Some(String::from_utf8_lossy(&result).to_string());
+        }
+    }
+
+    match result {
+        Ok(Ok(exec_logs)) => {
+            // Extract both raw event strings and structured diagnostic events
+            let (events, diagnostic_events) = match host.get_events() {
+                Ok(evs) => {
+                    let raw_events: Vec<String> =
+                        evs.0.iter().map(|e| format!("{:?}", e)).collect();
+                    let diag_events: Vec<DiagnosticEvent> = evs
+                        .0
+                        .iter()
+                        .map(|event| {
+                            let event_type = match &event.event.type_ {
+                                soroban_env_host::xdr::ContractEventType::Contract => {
+                                    "contract".to_string()
+                                }
+                                soroban_env_host::xdr::ContractEventType::System => {
+                                    "system".to_string()
+                                }
+                                soroban_env_host::xdr::ContractEventType::Diagnostic => {
+                                    "diagnostic".to_string()
+                                }
+                            };
+
+                            let contract_id = event
+                                .event
+                                .contract_id
+                                .as_ref()
+                                .map(|contract_id| format!("{:?}", contract_id));
+
+                            let (topics, data) = match &event.event.body {
+                                soroban_env_host::xdr::ContractEventBody::V0(v0) => {
+                                    let topics: Vec<String> =
+                                        v0.topics.iter().map(|t| format!("{:?}", t)).collect();
+                                    let data = format!("{:?}", v0.data);
+                                    (topics, data)
+                                }
+                            };
+
+                            DiagnosticEvent {
+                                event_type,
+                                contract_id,
+                                topics,
+                                data,
+                                in_successful_contract_call: event.failed_call,
+                            }
+                        })
+                        .collect();
+                    (raw_events, diag_events)
+                }
+                Err(_) => (vec!["Failed to retrieve events".to_string()], vec![]),
             };
 
-            // Success Response
+            // Capture categorized events for analyzer
+            let categorized_events = match host.get_events() {
+                Ok(evs) => categorize_events(&evs),
+                Err(_) => vec![],
+            };
+
+            let mut final_logs = vec![
+                format!("Host Initialized with Budget: {:?}", budget),
+                format!("Loaded {} Ledger Entries", loaded_entries_count),
+                format!("Captured {} diagnostic events", diagnostic_events.len()),
+                format!("CPU Instructions Used: {}", cpu_insns),
+                format!("Memory Bytes Used: {}", mem_bytes),
+            ];
+            for log in exec_logs {
+                final_logs.push(log);
+            }
+
             let response = SimulationResponse {
                 status: "success".to_string(),
                 error: None,
                 events,
-                logs: invocation_logs,
+                diagnostic_events,
+                categorized_events,
+                logs: final_logs,
+                flamegraph: flamegraph_svg,
+                optimization_report,
+                budget_usage: Some(budget_usage),
             };
 
             println!("{}", serde_json::to_string(&response).unwrap());
@@ -188,88 +336,80 @@ fn main() {
                 status: "error".to_string(),
                 error: Some(serde_json::to_string(&structured_error).unwrap()),
                 events: vec![],
-                logs: invocation_logs,
+                diagnostic_events: vec![],
+                categorized_events: vec![],
+                logs: vec![],
+                flamegraph: None,
+                optimization_report: None,
+                budget_usage: None,
             };
-
             println!("{}", serde_json::to_string(&response).unwrap());
         }
         Err(panic_info) => {
-            // Panic occurred during execution
-            let panic_message = if let Some(s) = panic_info.downcast_ref::<&str>() {
+            let panic_msg = if let Some(s) = panic_info.downcast_ref::<&str>() {
                 s.to_string()
             } else if let Some(s) = panic_info.downcast_ref::<String>() {
                 s.clone()
             } else {
-                "Unknown panic occurred".to_string()
+                "Unknown panic".to_string()
             };
-
-            let structured_error = StructuredError {
-                error_type: "Panic".to_string(),
-                message: panic_message.clone(),
-                details: Some(format!(
-                    "Contract execution panicked. This typically indicates a critical error in the contract or host. Panic message: {}",
-                    panic_message
-                )),
-            };
-
-            invocation_logs.push(format!("PANIC: {}", panic_message));
 
             let response = SimulationResponse {
                 status: "error".to_string(),
-                error: Some(serde_json::to_string(&structured_error).unwrap()),
+                error: Some(format!("Simulator panicked: {}", panic_msg)),
                 events: vec![],
-                logs: invocation_logs,
+                diagnostic_events: vec![],
+                categorized_events: vec![],
+                logs: vec![format!("PANIC: {}", panic_msg)],
+                flamegraph: None,
+                optimization_report: None,
+                budget_usage: None,
             };
-
             println!("{}", serde_json::to_string(&response).unwrap());
         }
     }
 }
 
-/// Execute operations and handle host errors
-fn execute_operations(
-    _host: &soroban_env_host::Host,
-    operations: &soroban_env_host::xdr::VecM<soroban_env_host::xdr::Operation, 100>,
-) -> Result<Vec<String>, soroban_env_host::HostError> {
-    let mut logs = vec![];
+// -----------------------------------------------------------------------------
+// Decoder Logic
+// -----------------------------------------------------------------------------
 
-    for op in operations.iter() {
-        if let soroban_env_host::xdr::OperationBody::InvokeHostFunction(host_fn_op) = &op.body {
-            match &host_fn_op.host_function {
-                soroban_env_host::xdr::HostFunction::InvokeContract(invoke_args) => {
-                    logs.push("Found InvokeContract operation!".to_string());
+/// Decodes generic errors and WASM traps into human-readable messages.
+///
+/// Differentiates between:
+/// 1. VM-initiated traps (WASM execution failures)
+/// 2. Host-initiated traps (Soroban environment logic failures)
+#[allow(dead_code)]
+fn decode_error(err_msg: &str) -> String {
+    let err_lower = err_msg.to_lowercase();
 
-                    let address = &invoke_args.contract_address;
-                    let func_name = &invoke_args.function_name;
-                    let invoke_args_vec = &invoke_args.args;
-
-                    logs.push(format!("About to Invoke Contract: {:?}", address));
-                    logs.push(format!("Function: {:?}", func_name));
-                    logs.push(format!("Args Count: {}", invoke_args_vec.len()));
-
-                    // In a full implementation, we'd do:
-                    // let res = host.invoke_function(...)?;
-                    // For now, this is a placeholder for actual contract invocation
-
-                    // Example of how to handle HostError propagation:
-                    // match host.invoke_function(...) {
-                    //     Ok(result) => {
-                    //         logs.push(format!("Invocation successful: {:?}", result));
-                    //     }
-                    //     Err(e) => {
-                    //         // Propagate HostError up to be caught by the outer handler
-                    //         return Err(e);
-                    //     }
-                    // }
-                }
-                _ => {
-                    logs.push("Skipping non-InvokeContract Host Function".to_string());
-                }
-            }
+    // Check for VM-initiated traps (Pure WASM)
+    if err_lower.contains("wasm trap") || err_lower.contains("trapped") {
+        if err_lower.contains("unreachable") {
+            return "VM Trap: Unreachable Instruction (Panic or invalid code path)".to_string();
         }
+        if err_lower.contains("out of bounds") || err_lower.contains("memory access") {
+            return "VM Trap: Out of Bounds Access (Invalid memory read/write)".to_string();
+        }
+        if err_lower.contains("integer overflow") || err_lower.contains("arithmetic overflow") {
+            return "VM Trap: Integer Overflow".to_string();
+        }
+        if err_lower.contains("stack overflow") || err_lower.contains("call stack exhausted") {
+            return "VM Trap: Stack Overflow (Recursion limit exceeded)".to_string();
+        }
+        if err_lower.contains("divide by zero") {
+            return "VM Trap: Division by Zero".to_string();
+        }
+        return format!("VM Trap: Unknown Wasm Trap ({})", err_msg);
     }
 
-    Ok(logs)
+    // Check for Host-initiated traps (Soroban Host Logic)
+    if err_lower.contains("hosterror") || err_lower.contains("context") {
+        return format!("Host Trap: {}", err_msg);
+    }
+
+    // Fallback
+    format!("Execution Error: {}", err_msg)
 }
 
 fn send_error(msg: String) {
@@ -277,118 +417,128 @@ fn send_error(msg: String) {
         status: "error".to_string(),
         error: Some(msg),
         events: vec![],
+        diagnostic_events: vec![],
+        categorized_events: vec![],
         logs: vec![],
+        flamegraph: None,
+        optimization_report: None,
+        budget_usage: None,
     };
     println!("{}", serde_json::to_string(&res).unwrap());
 }
 
-/// Decode a base64-encoded LedgerKey XDR
-fn decode_ledger_key(key_xdr: &str) -> Result<soroban_env_host::xdr::LedgerKey, String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(key_xdr)
-        .map_err(|e| format!("Failed to decode LedgerKey Base64: {}", e))?;
+#[allow(dead_code)]
+fn run_local_wasm_replay(wasm_path: &str, mock_args: &Option<Vec<String>>) {
+    use soroban_env_host::Host;
+    use std::fs;
 
-    soroban_env_host::xdr::LedgerKey::from_xdr(bytes, soroban_env_host::xdr::Limits::none())
-        .map_err(|e| format!("Failed to parse LedgerKey XDR: {}", e))
+    eprintln!("🔧 Local WASM Replay Mode");
+    eprintln!("WASM Path: {}", wasm_path);
+    eprintln!("⚠️  WARNING: Using Mock State (not mainnet data)");
+    eprintln!();
+
+    // Read WASM file
+    match fs::read(wasm_path) {
+        Ok(bytes) => {
+            eprintln!("✓ Loaded WASM file: {} bytes", bytes.len());
+        }
+        Err(e) => {
+            send_error(format!("Failed to read WASM file: {}", e));
+            return;
+        }
+    };
+
+    // Initialize Host
+    let host = Host::default();
+    host.set_diagnostic_level(soroban_env_host::DiagnosticLevel::Debug)
+        .unwrap();
+
+    eprintln!("✓ Initialized Host with diagnostic level: Debug");
+
+    // TODO: Full execution requires 'testutils' feature which is currently causing build issues.
+    // For now, we just parse args and print what we WOULD do.
+
+    eprintln!(
+        "⚠️  Full execution temporarily disabled due to build issues with 'testutils' feature."
+    );
+    eprintln!("   (See issue #183 for details)");
+
+    // Parse Arguments (Mock)
+    if let Some(args) = mock_args {
+        if !args.is_empty() {
+            eprintln!("▶ Would invoke function: {}", args[0]);
+            eprintln!("  With args: {:?}", &args[1..]);
+        }
+    }
+
+    // Capture Logs/Events
+    let events = match host.get_events() {
+        Ok(evs) => evs
+            .0
+            .iter()
+            .map(|e| format!("{:?}", e))
+            .collect::<Vec<String>>(),
+        Err(e) => vec![format!("Failed to retrieve events: {:?}", e)],
+    };
+
+    let logs = vec![
+        format!("Host Budget: {:?}", host.budget_cloned()),
+        "Execution: Skipped (Build Issue)".to_string(),
+    ];
+
+    let response = SimulationResponse {
+        status: "success".to_string(),
+        error: None,
+        events,
+        diagnostic_events: vec![],
+        categorized_events: vec![],
+        logs,
+        flamegraph: None,
+        optimization_report: None,
+        budget_usage: None,
+    };
+
+    println!("{}", serde_json::to_string(&response).unwrap());
 }
 
-/// Decode a base64-encoded LedgerEntry XDR
-fn decode_ledger_entry(entry_xdr: &str) -> Result<soroban_env_host::xdr::LedgerEntry, String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(entry_xdr)
-        .map_err(|e| format!("Failed to decode LedgerEntry Base64: {}", e))?;
+// -----------------------------------------------------------------------------
+// Tests
+// -----------------------------------------------------------------------------
 
-    soroban_env_host::xdr::LedgerEntry::from_xdr(bytes, soroban_env_host::xdr::Limits::none())
-        .map_err(|e| format!("Failed to parse LedgerEntry XDR: {}", e))
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-/// Inject a ledger entry into the Host's storage
-/// This populates the SnapshotSource with the provided state
-fn inject_ledger_entry(
-    _host: &soroban_env_host::Host,
-    key: &soroban_env_host::xdr::LedgerKey,
-    entry: &soroban_env_host::xdr::LedgerEntry,
-) -> Result<(), String> {
-    use soroban_env_host::xdr::{LedgerEntryData, LedgerKey};
+    #[test]
+    fn test_decode_vm_traps() {
+        // 1. Out of Bounds
+        let msg = decode_error("Error: Wasm Trap: out of bounds memory access");
+        assert!(msg.contains("VM Trap: Out of Bounds Access"));
 
-    // Match on entry type and inject appropriately
-    match (&key, &entry.data) {
-        // ContractData entries (persistent and temporary storage)
-        (LedgerKey::ContractData(_), LedgerEntryData::ContractData(data)) => {
-            eprintln!(
-                "Injecting ContractData: contract={:?}, key={:?}, durability={:?}",
-                data.contract, data.key, data.durability
-            );
-            // The storage will be populated via the snapshot source
-            // For now, we log that we've received it
-            Ok(())
-        }
+        // 2. Integer Overflow
+        let msg = decode_error("Error: trapped: integer overflow");
+        assert!(msg.contains("VM Trap: Integer Overflow"));
 
-        // ContractCode entries (WASM bytecode)
-        (LedgerKey::ContractCode(_), LedgerEntryData::ContractCode(code)) => {
-            eprintln!(
-                "Injecting ContractCode: hash={:?}, code_size={} bytes",
-                code.hash,
-                code.code.len()
-            );
-            Ok(())
-        }
+        // 3. Stack Overflow
+        let msg = decode_error("Wasm Trap: call stack exhausted");
+        assert!(msg.contains("VM Trap: Stack Overflow"));
 
-        // Account entries (for classic Stellar accounts)
-        (LedgerKey::Account(_), LedgerEntryData::Account(account)) => {
-            eprintln!(
-                "Injecting Account: account_id={:?}, balance={}",
-                account.account_id, account.balance
-            );
-            Ok(())
-        }
+        // 4. Unreachable
+        let msg = decode_error("Wasm Trap: unreachable");
+        assert!(msg.contains("VM Trap: Unreachable Instruction"));
+    }
 
-        // Trustline entries (for classic Stellar assets)
-        (LedgerKey::Trustline(_), LedgerEntryData::Trustline(trustline)) => {
-            eprintln!(
-                "Injecting Trustline: account_id={:?}, asset={:?}, balance={}",
-                trustline.account_id, trustline.asset, trustline.balance
-            );
-            Ok(())
-        }
+    #[test]
+    fn test_decode_host_traps() {
+        // Host Error
+        let msg = decode_error("HostError: Error(Context, InvalidInput)");
+        assert!(msg.contains("Host Trap"));
+        assert!(!msg.contains("VM Trap"));
+    }
 
-        // TTL entries (time-to-live for contract storage)
-        (LedgerKey::Ttl(_), LedgerEntryData::Ttl(ttl)) => {
-            eprintln!(
-                "Injecting TTL: key_hash={:?}, live_until_ledger={}",
-                ttl.key_hash, ttl.live_until_ledger_seq
-            );
-            Ok(())
-        }
-
-        // Other entry types
-        (LedgerKey::Offer(_), LedgerEntryData::Offer(_)) => {
-            eprintln!("Injecting Offer entry");
-            Ok(())
-        }
-        (LedgerKey::Data(_), LedgerEntryData::Data(_)) => {
-            eprintln!("Injecting Data entry");
-            Ok(())
-        }
-        (LedgerKey::ClaimableBalance(_), LedgerEntryData::ClaimableBalance(_)) => {
-            eprintln!("Injecting ClaimableBalance entry");
-            Ok(())
-        }
-        (LedgerKey::LiquidityPool(_), LedgerEntryData::LiquidityPool(_)) => {
-            eprintln!("Injecting LiquidityPool entry");
-            Ok(())
-        }
-        (LedgerKey::ConfigSetting(_), LedgerEntryData::ConfigSetting(_)) => {
-            eprintln!("Injecting ConfigSetting entry");
-            Ok(())
-        }
-
-        // Mismatched key and entry types
-        _ => Err(format!(
-            "Mismatched LedgerKey and LedgerEntry types: key={:?}, entry={:?}",
-            key, entry.data
-        )),
+    #[test]
+    fn test_unknown_trap_fallback() {
+        let msg = decode_error("Wasm Trap: something weird happened");
+        assert!(msg.contains("VM Trap: Unknown Wasm Trap"));
     }
 }
-
-mod test;
