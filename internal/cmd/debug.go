@@ -7,12 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
 
 	"github.com/dotandev/hintents/internal/errors"
 	"github.com/dotandev/hintents/internal/localization"
+	"github.com/dotandev/hintents/internal/logger"
 	"github.com/dotandev/hintents/internal/rpc"
 	"github.com/dotandev/hintents/internal/security"
 	"github.com/dotandev/hintents/internal/session"
@@ -102,6 +104,12 @@ Local WASM Replay Mode:
 		return nil
 	},
 	RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+		if verbose {
+			logger.SetLevel(slog.LevelInfo)
+		} else {
+			logger.SetLevel(slog.LevelWarn)
+		}
+
 		// Local WASM replay mode
 		if wasmPath != "" {
 			return runLocalWasmReplay()

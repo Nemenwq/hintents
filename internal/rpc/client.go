@@ -43,6 +43,7 @@ const (
 // Client handles interactions with the Stellar Network
 type Client struct {
 	Horizon    horizonclient.ClientInterface
+	HorizonURL string
 	Network    Network
 	SorobanURL string
 }
@@ -84,6 +85,7 @@ func NewClient(net Network) *Client {
 
 	return &Client{
 		Horizon:    horizonClient,
+		HorizonURL: horizonClient.HorizonURL,
 		Network:    net,
 		SorobanURL: sorobanURL,
 	}
@@ -101,6 +103,7 @@ func NewClientWithURL(url string, net Network) *Client {
 
 	return &Client{
 		Horizon:    horizonClient,
+		HorizonURL: url,
 		Network:    net,
 		SorobanURL: defaultClient.SorobanURL,
 	}
@@ -116,12 +119,12 @@ func (c *Client) GetTransaction(ctx context.Context, hash string) (*TransactionR
 	)
 	defer span.End()
 
-	logger.Logger.Debug("Fetching transaction details", "hash", hash)
+	logger.Logger.Debug("Fetching transaction details", "hash", hash, "horizon_url", c.HorizonURL)
 
 	tx, err := c.Horizon.TransactionDetail(hash)
 	if err != nil {
 		span.RecordError(err)
-		logger.Logger.Error("Failed to fetch transaction", "hash", hash, "error", err)
+		logger.Logger.Error("Failed to fetch transaction", "hash", hash, "error", err, "url", c.HorizonURL)
 		return nil, fmt.Errorf("failed to fetch transaction: %w", err)
 	}
 
@@ -131,7 +134,11 @@ func (c *Client) GetTransaction(ctx context.Context, hash string) (*TransactionR
 		attribute.Int("result_meta.size_bytes", len(tx.ResultMetaXdr)),
 	)
 
-	logger.Logger.Info("Transaction fetched successfully", "hash", hash, "envelope_size", len(tx.EnvelopeXdr))
+	logger.Logger.Info("Transaction fetched",
+		"hash", hash,
+		"envelope_size", len(tx.EnvelopeXdr),
+		"url", c.HorizonURL,
+	)
 
 	return &TransactionResponse{
 		EnvelopeXdr:   tx.EnvelopeXdr,
@@ -172,8 +179,6 @@ func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[strin
 		return map[string]string{}, nil
 	}
 
-	logger.Logger.Debug("Fetching ledger entries", "count", len(keys), "url", c.SorobanURL)
-
 	reqBody := GetLedgerEntriesRequest{
 		Jsonrpc: "2.0",
 		ID:      1,
@@ -185,6 +190,12 @@ func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
+
+	logger.Logger.Info("Fetching ledger entries",
+		"count", len(keys),
+		"url", c.SorobanURL,
+		"request_size", len(bodyBytes),
+	)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.SorobanURL, bytes.NewBuffer(bodyBytes))
 	if err != nil {
@@ -209,7 +220,7 @@ func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[strin
 	}
 
 	if rpcResp.Error != nil {
-		return nil, fmt.Errorf("rpc error: %s (code %d)", rpcResp.Error.Message, rpcResp.Error.Code)
+		return nil, fmt.Errorf("rpc error from %s: %s (code %d)", c.SorobanURL, rpcResp.Error.Message, rpcResp.Error.Code)
 	}
 
 	entries := make(map[string]string)
@@ -217,7 +228,12 @@ func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[strin
 		entries[entry.Key] = entry.Xdr
 	}
 
-	logger.Logger.Info("Ledger entries fetched successfully", "found", len(entries), "requested", len(keys))
+	logger.Logger.Info("Ledger entries fetched",
+		"found", len(entries),
+		"requested", len(keys),
+		"response_size", len(respBytes),
+		"url", c.SorobanURL,
+	)
 
 	return entries, nil
 }
