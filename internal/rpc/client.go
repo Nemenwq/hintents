@@ -94,6 +94,7 @@ var (
 
 // Client handles interactions with the Stellar Network
 type Client struct {
+	HorizonURL   string
 	Horizon      horizonclient.ClientInterface
 	HorizonURL   string
 	AltURLs      []string
@@ -101,6 +102,9 @@ type Client struct {
 	mu           sync.RWMutex
 	Network      Network
 	SorobanURL   string
+	AltURLs      []string
+	mu           sync.RWMutex
+	currIndex    int
 	token        string // stored for reference, not logged
 	Config       NetworkConfig
 	CacheEnabled bool
@@ -161,10 +165,16 @@ func NewClientWithURLs(urls []string, net Network, token string) *Client {
 	httpClient := createHTTPClient(token)
 
 	return &Client{
+		HorizonURL: urls[0],
 		Horizon: &horizonclient.Client{
 			HorizonURL: urls[0],
 			HTTP:       httpClient,
 		},
+		Network:    net,
+		SorobanURL: sorobanURL,
+		AltURLs:    urls,
+		token:      token,
+		Config:     config,
 		HorizonURL:   urls[0],
 		AltURLs:      urls,
 		Network:      net,
@@ -197,13 +207,25 @@ func (c *Client) rotateURL() bool {
 
 // createHTTPClient creates an HTTP client with optional authentication
 func createHTTPClient(token string) *http.Client {
-	if token == "" {
-		return http.DefaultClient
+	cfg := DefaultRetryConfig()
+
+	// Build transport chain: base -> auth -> retry
+	var baseTransport http.RoundTripper = http.DefaultTransport
+
+	// Add auth transport if token is provided
+	var transport http.RoundTripper = baseTransport
+	if token != "" {
+		transport = &authTransport{
+			token:     token,
+			transport: baseTransport,
+		}
 	}
 
+	// Add retry transport
+	transport = NewRetryTransport(cfg, transport)
+
 	return &http.Client{
-		Transport: &authTransport{
-			token:     token,
+		Transport: transport,
 			transport: http.DefaultTransport,
 		},
 	}
@@ -534,7 +556,7 @@ func (c *Client) getLedgerEntriesAttempt(ctx context.Context, keysToFetch []stri
 		Jsonrpc: "2.0",
 		ID:      1,
 		Method:  "getLedgerEntries",
-		Params:  []interface{}{keysToFetch},
+		Params:  []interface{}{keys},
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -590,6 +612,7 @@ func (c *Client) getLedgerEntriesAttempt(ctx context.Context, keysToFetch []stri
 	}
 
 	logger.Logger.Info("Ledger entries fetched",
+// 		"total_requested", len(keys),
 		"total_requested", len(keysToFetch),
 		"from_cache", len(keysToFetch)-fetchedCount,
 		"from_rpc", fetchedCount,
