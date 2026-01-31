@@ -151,9 +151,8 @@ fn main() {
     };
 
     // Initialize Host
-    let host = soroban_env_host::Host::default();
-    host.set_diagnostic_level(soroban_env_host::DiagnosticLevel::Debug)
-        .unwrap();
+    let sim_host = runner::SimHost::new(None);
+    let host = sim_host.inner;
 
     let mut loaded_entries_count = 0;
 
@@ -430,7 +429,6 @@ fn send_error(msg: String) {
 
 #[allow(dead_code)]
 fn run_local_wasm_replay(wasm_path: &str, mock_args: &Option<Vec<String>>) {
-    use soroban_env_host::Host;
     use std::fs;
 
     eprintln!("🔧 Local WASM Replay Mode");
@@ -450,9 +448,8 @@ fn run_local_wasm_replay(wasm_path: &str, mock_args: &Option<Vec<String>>) {
     };
 
     // Initialize Host
-    let host = Host::default();
-    host.set_diagnostic_level(soroban_env_host::DiagnosticLevel::Debug)
-        .unwrap();
+    let sim_host = crate::runner::SimHost::new(None);
+    let host = sim_host.inner;
 
     eprintln!("✓ Initialized Host with diagnostic level: Debug");
 

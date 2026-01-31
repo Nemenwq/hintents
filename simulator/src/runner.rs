@@ -9,6 +9,7 @@ use soroban_env_host::{
     Error as EnvError,
 };
 
+#[allow(dead_code)]
 /// Wrapper around the Soroban Host to manage initialization and execution context.
 pub struct SimHost {
     pub inner: Host,
@@ -16,12 +17,14 @@ pub struct SimHost {
     pub fn_name: Option<String>,
 }
 
+#[allow(dead_code)]
 impl SimHost {
     /// Initialize a new Host with optional budget settings.
     pub fn new(budget_limits: Option<(u64, u64)>) -> Self {
         let budget = Budget::default();
         if let Some((_cpu, _mem)) = budget_limits {
-            // Limits configuration pending correct API
+            // Budget customization requires testutils feature or extended API
+            // Using default mainnet budget settings
         }
 
         // Host::with_storage_and_budget is available in recent versions
