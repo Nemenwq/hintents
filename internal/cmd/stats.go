@@ -62,6 +62,30 @@ func runStats(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// loadSimulationResponse retrieves the simulation data from the session store
+func loadSimulationResponse(cmd *cobra.Command, id string) (*simulator.SimulationResponse, error) {
+	if id != "" {
+		store, err := session.NewStore()
+		if err != nil {
+			return nil, fmt.Errorf("failed to open session store: %w", err)
+		}
+		defer store.Close()
+
+		data, err := store.Load(cmd.Context(), id)
+		if err != nil {
+			return nil, fmt.Errorf("session '%s' not found: %w", id, err)
+		}
+		return data.ToSimulationResponse()
+	}
+
+	// Reference the session package to get the active data
+	data := session.GetCurrentSession()
+	if data == nil {
+		return nil, fmt.Errorf("no active session. Run 'erst debug <tx-hash>' first")
+	}
+	return data.ToSimulationResponse()
+}
+
 func buildContractStats(resp *simulator.SimulationResponse) []contractStat {
 	index := make(map[string]*contractStat)
 
