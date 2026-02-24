@@ -1,3 +1,6 @@
+// Copyright (c) Hintents Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { AuditSigner } from './types';
 import { SoftwareEd25519Signer } from './softwareSigner';
 import { Pkcs11Ed25519Signer } from './pkcs11Signer';

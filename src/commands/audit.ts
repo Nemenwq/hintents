@@ -1,3 +1,6 @@
+// Copyright (c) Hintents Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 import { Command } from 'commander';
 import * as dotenv from 'dotenv';
 import { AuditLogger } from '../audit/AuditLogger';

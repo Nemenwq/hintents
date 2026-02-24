@@ -1,3 +1,6 @@
+// Copyright (c) Hintents Authors.
+// SPDX-License-Identifier: Apache-2.0
+
 import type { AuditSigner, PublicKey, Signature } from './types';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
