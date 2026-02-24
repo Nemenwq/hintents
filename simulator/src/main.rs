@@ -22,16 +22,7 @@ use std::env;
 use std::io::{self, Read};
 use tracing_subscriber::{fmt, EnvFilter};
 
-#[derive(Debug, Deserialize)]
-struct SimulationRequest {
-    envelope_xdr: String,
-    result_meta_xdr: String,
-    /// Key XDR -> Entry XDR
-    ledger_entries: Option<HashMap<String, String>>,
-    contract_wasm: Option<String>,
-    enable_optimization_advisor: bool,
-    profile: Option<bool>,
-}
+// Use types::SimulationRequest directly
 
 fn init_logger() {
     // Check if the environment variable ERST_LOG_FORMAT is set to "json"
@@ -270,7 +261,7 @@ fn main() {
     };
 
     // Initialize Host
-    let sim_host = runner::SimHost::new(None);
+    let sim_host = runner::SimHost::new(None, request.resource_calibration.clone());
     let host = sim_host.inner;
 
     let mut loaded_entries_count = 0;

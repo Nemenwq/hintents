@@ -24,6 +24,13 @@ var protocols = map[uint32]*Protocol{
 			"max_contract_data_size": 1024000,
 			"max_instruction_limit":  100000000,
 			"supported_opcodes":      []string{"invoke_contract", "create_contract"},
+			"resource_calibration": &ResourceCalibration{
+				SHA256Fixed:      3738,
+				SHA256PerByte:    37,
+				Keccak256Fixed:   3766,
+				Keccak256PerByte: 63,
+				Ed25519Fixed:     377524,
+			},
 		},
 	},
 	21: {
@@ -35,6 +42,13 @@ var protocols = map[uint32]*Protocol{
 			"max_instruction_limit":  150000000,
 			"supported_opcodes":      []string{"invoke_contract", "create_contract", "extend_contract"},
 			"enhanced_metering":      true,
+			"resource_calibration": &ResourceCalibration{
+				SHA256Fixed:      3738,
+				SHA256PerByte:    37,
+				Keccak256Fixed:   3766,
+				Keccak256PerByte: 63,
+				Ed25519Fixed:     377524,
+			},
 		},
 	},
 	22: {
@@ -47,6 +61,13 @@ var protocols = map[uint32]*Protocol{
 			"supported_opcodes":      []string{"invoke_contract", "create_contract", "extend_contract", "upgrade_contract"},
 			"enhanced_metering":      true,
 			"optimized_storage":      true,
+			"resource_calibration": &ResourceCalibration{
+				SHA256Fixed:      3738,
+				SHA256PerByte:    37,
+				Keccak256Fixed:   3766,
+				Keccak256PerByte: 63,
+				Ed25519Fixed:     377524,
+			},
 		},
 	},
 }
