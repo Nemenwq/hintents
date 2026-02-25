@@ -26,8 +26,8 @@ func (e *ValidationError) Error() string {
 
 // Validator validates simulation requests against formal schemas
 type Validator struct {
-	strictMode      bool
-	enabledRules    map[string]bool
+	strictMode       bool
+	enabledRules     map[string]bool
 	customValidators map[string]func(interface{}) error
 }
 
