@@ -199,6 +199,19 @@ Local WASM Replay Mode:
 			return errors.WrapValidationError(fmt.Sprintf("invalid transaction hash format: %v", err))
 		}
 
+		if !cmd.Flags().Changed("network") {
+			token := rpcTokenFlag
+			if token == "" {
+				token = os.Getenv("ERST_RPC_TOKEN")
+			}
+			probeCtx, probeCancel := context.WithTimeout(cmd.Context(), 5*time.Second)
+			defer probeCancel()
+			if resolved, err := rpc.ResolveNetwork(probeCtx, args[0], token); err == nil {
+				networkFlag = string(resolved)
+				fmt.Printf("Resolved network: %s\n", networkFlag)
+			}
+		}
+
 		// Validate network flag
 		switch rpc.Network(networkFlag) {
 		case rpc.Testnet, rpc.Mainnet, rpc.Futurenet:
@@ -1010,7 +1023,7 @@ func diffResults(res1, res2 *simulator.SimulationResponse, net1, net2 string) {
 }
 
 func init() {
-	debugCmd.Flags().StringVarP(&networkFlag, "network", "n", "mainnet", "Stellar network")
+	debugCmd.Flags().StringVarP(&networkFlag, "network", "n", "mainnet", "Stellar network (auto-detected when omitted; testnet, mainnet, futurenet)")
 	debugCmd.Flags().StringVar(&rpcURLFlag, "rpc-url", "", "Custom RPC URL")
 	debugCmd.Flags().StringVar(&rpcTokenFlag, "rpc-token", "", "RPC authentication token (can also use ERST_RPC_TOKEN env var)")
 	debugCmd.Flags().BoolVar(&tracingEnabled, "tracing", false, "Enable tracing")
