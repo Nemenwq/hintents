@@ -24,6 +24,8 @@ type SimulationRequest struct {
 	MockArgs        *[]string         `json:"mock_args,omitempty"`
 	Profile         bool              `json:"profile,omitempty"`
 	ProtocolVersion *uint32           `json:"protocol_version,omitempty"`
+	MockBaseFee     *uint32           `json:"mock_base_fee,omitempty"`
+	MockGasPrice    *uint64           `json:"mock_gas_price,omitempty"`
 
 	AuthTraceOpts       *AuthTraceOptions      `json:"auth_trace_opts,omitempty"`
 	CustomAuthCfg       map[string]interface{} `json:"custom_auth_config,omitempty"`
@@ -52,6 +54,7 @@ type DiagnosticEvent struct {
 	Topics                   []string `json:"topics"`
 	Data                     string   `json:"data"`
 	InSuccessfulContractCall bool     `json:"in_successful_contract_call"`
+	WasmInstruction          *string  `json:"wasm_instruction,omitempty"`
 }
 
 // BudgetUsage represents resource consumption during simulation
