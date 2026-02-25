@@ -6,9 +6,13 @@ package rpc
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	errs "github.com/dotandev/hintents/internal/errors"
 	"github.com/stellar/go-stellar-sdk/clients/horizonclient"
 	hProtocol "github.com/stellar/go-stellar-sdk/protocols/horizon"
 	effects "github.com/stellar/go-stellar-sdk/protocols/horizon/effects"
@@ -291,4 +295,55 @@ func TestGetTransaction_Timeout(t *testing.T) {
 	testCtx = ctx
 	_, err := c.GetTransaction(ctx, "timeout")
 	assert.Error(t, err)
+}
+
+func TestGetLedgerEntries_ResponseTooLarge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		w.Write([]byte("response too large"))
+	}))
+	defer server.Close()
+
+	c := &Client{
+		Horizon:    &mockHorizonClient{},
+		HorizonURL: server.URL,
+		SorobanURL: server.URL,
+		Network:    "custom",
+		AltURLs:    []string{server.URL},
+	}
+
+	_, err := c.GetLedgerEntries(context.Background(), []string{"AAAA"})
+	assert.Error(t, err)
+	assert.True(t, IsResponseTooLarge(err) || containsStr(err.Error(), "exceeded the server"))
+}
+
+func TestSimulateTransaction_ResponseTooLarge(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusRequestEntityTooLarge)
+		w.Write([]byte("response too large"))
+	}))
+	defer server.Close()
+
+	c := &Client{
+		Horizon:    &mockHorizonClient{},
+		HorizonURL: server.URL,
+		SorobanURL: server.URL,
+		Network:    "custom",
+		AltURLs:    []string{server.URL},
+	}
+
+	_, err := c.SimulateTransaction(context.Background(), "dGVzdA==")
+	assert.Error(t, err)
+	assert.True(t, IsResponseTooLarge(err) || containsStr(err.Error(), "exceeded the server"))
+}
+
+func TestIsResponseTooLarge(t *testing.T) {
+	err := errs.WrapRPCResponseTooLarge("https://example.com")
+	assert.True(t, IsResponseTooLarge(err))
+	assert.False(t, IsResponseTooLarge(errs.WrapRPCConnectionFailed(errors.New("fail"))))
+	assert.False(t, IsResponseTooLarge(nil))
+}
+
+func containsStr(s, substr string) bool {
+	return len(s) >= len(substr) && strings.Contains(s, substr)
 }
