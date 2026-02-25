@@ -333,6 +333,13 @@ func createHTTPClient(token string, timeout time.Duration, middlewares ...Middle
 
 	transport = NewRetryTransport(cfg, transport)
 
+	// Apply custom middlewares
+	for _, mw := range middlewares {
+		if mw != nil {
+			transport = mw(transport)
+		}
+	}
+
 	return &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
