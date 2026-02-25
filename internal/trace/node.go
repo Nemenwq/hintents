@@ -3,6 +3,8 @@
 
 package trace
 
+import "fmt"
+
 // TraceNode represents a single node in the execution trace tree
 type TraceNode struct {
 	ID            string       // Unique identifier for this node
@@ -84,7 +86,6 @@ func (n *TraceNode) ApplyHeuristics() {
 	newChildren := make([]*TraceNode, 0)
 	i := 0
 	for i < len(n.Children) {
-		start := i
 		similarityKey := n.Children[i].similarityKey()
 
 		// Count consecutive similar siblings
