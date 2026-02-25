@@ -25,6 +25,12 @@ log_level = "info"
 # Can also be set via ERST_CRASH_REPORTING=true in the environment.
 # crash_reporting = false
 
+# Sentry DSN for crash reporting (alternative or complement to crash_endpoint).
+# Obtain from your Sentry project settings. Leave commented to disable Sentry.
+# Can also be set via ERST_SENTRY_DSN in the environment.
+# crash_sentry_dsn = "https://<key>@<org>.ingest.sentry.io/<project>"
+
 # Override the crash report collection endpoint (optional).
-# Defaults to https://crash.erst.dev/v1/report
+# Defaults to https://crash.erst.dev/v1/report when crash_reporting is true
+# and no Sentry DSN is set. Can also be set via ERST_CRASH_ENDPOINT.
 # crash_endpoint = "https://crash.erst.dev/v1/report"

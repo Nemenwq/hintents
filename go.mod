@@ -3,6 +3,7 @@ module github.com/dotandev/hintents
 go 1.24.0
 
 require (
+	github.com/getsentry/sentry-go v0.31.1
 	github.com/gorilla/rpc v1.2.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/mattn/go-isatty v0.0.20

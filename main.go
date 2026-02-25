@@ -32,6 +32,7 @@ func main() {
 
 	reporter := crashreport.New(crashreport.Config{
 		Enabled:   cfg.CrashReporting,
+		SentryDSN: cfg.CrashSentryDSN,
 		Endpoint:  cfg.CrashEndpoint,
 		Version:   version,
 		CommitSHA: commitSHA,

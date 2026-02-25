@@ -281,3 +281,74 @@ func TestHandlePanic_ReportsStringPanic(t *testing.T) {
 
 	assert.Equal(t, "string panic value", gotMessage)
 }
+
+// ---- Sentry DSN / env-var wiring --------------------------------------------
+
+// TestNew_SentryDSNFromEnv verifies that ERST_SENTRY_DSN is picked up by New
+// and stored in the config (Sentry init will fail with a fake DSN, which is
+// acceptable — we only verify the field is set, not that the SDK initialised).
+func TestNew_SentryDSNFromEnv(t *testing.T) {
+	setEnv(t, envSentryDSN, "https://fakekey@o0.ingest.sentry.io/0")
+	// Endpoint must be empty in config so the env-var DSN is the only sink.
+	r := New(Config{Endpoint: "unused"})
+	assert.Equal(t, "https://fakekey@o0.ingest.sentry.io/0", r.cfg.SentryDSN)
+}
+
+// TestNew_SentryDSNFromConfig verifies that a DSN supplied directly via Config
+// is stored and does not fall back to DefaultEndpoint when it is the only sink.
+func TestNew_SentryDSNFromConfig(t *testing.T) {
+	os.Unsetenv(envSentryDSN)
+	os.Unsetenv(envEndpoint)
+	r := New(Config{SentryDSN: "https://fakekey@o0.ingest.sentry.io/1"})
+	assert.Equal(t, "https://fakekey@o0.ingest.sentry.io/1", r.cfg.SentryDSN)
+	// Endpoint should remain empty — DSN is present, no fallback needed.
+	assert.Equal(t, "", r.cfg.Endpoint)
+}
+
+// TestNew_DefaultEndpointWhenNoSinks verifies that DefaultEndpoint is used
+// when neither SentryDSN nor Endpoint is configured.
+func TestNew_DefaultEndpointWhenNoSinks(t *testing.T) {
+	os.Unsetenv(envSentryDSN)
+	os.Unsetenv(envEndpoint)
+	r := New(Config{})
+	assert.Equal(t, DefaultEndpoint, r.cfg.Endpoint)
+	assert.Equal(t, "", r.cfg.SentryDSN)
+}
+
+// TestSend_SentrySkippedWhenInactive verifies that a reporter with an invalid
+// DSN (sentryActive=false) still successfully delivers to the custom endpoint.
+func TestSend_SentrySkippedWhenInactive(t *testing.T) {
+	setEnv(t, envOptIn, "true")
+
+	received := false
+	srv := newTestServer(t, http.StatusOK, func(_ *http.Request, _ Report) {
+		received = true
+	})
+	defer srv.Close()
+
+	// Use a bad DSN so sentryActive stays false, but provide a working endpoint.
+	r := New(Config{
+		Enabled:   true,
+		SentryDSN: "not-a-dsn",
+		Endpoint:  srv.URL,
+	})
+	assert.False(t, r.sentryActive)
+
+	err := r.Send(context.Background(), errors.New("test"), nil, "")
+	require.NoError(t, err)
+	assert.True(t, received, "custom endpoint should have been called")
+}
+
+// TestIsEnabled_EnvVarYes verifies the "yes" token is accepted.
+func TestIsEnabled_EnvVarYes(t *testing.T) {
+	setEnv(t, envOptIn, "yes")
+	r := New(Config{Enabled: false})
+	assert.True(t, r.IsEnabled())
+}
+
+// TestIsEnabled_EnvVarNo verifies the "no" token is accepted.
+func TestIsEnabled_EnvVarNo(t *testing.T) {
+	setEnv(t, envOptIn, "no")
+	r := New(Config{Enabled: true})
+	assert.False(t, r.IsEnabled())
+}
