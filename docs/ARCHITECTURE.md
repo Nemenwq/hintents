@@ -189,6 +189,7 @@ graph LR
 - Fetch transaction envelopes and metadata
 - Query ledger state at specific transaction points
 - Support multiple networks (Mainnet, Testnet, Futurenet)
+- **Standardized Middleware**: Support custom interceptors for requests/responses
 
 **Key Functions:**
 
@@ -199,14 +200,14 @@ type Client struct {
     Network Network
 }
 
-// NewClient creates network-specific RPC client
-func NewClient(net Network) *Client
+// NewClient creates network-specific RPC client with functional options
+func NewClient(opts ...ClientOption) (*Client, error)
+
+// WithMiddleware adds custom RoundTripper middleware
+func WithMiddleware(middlewares ...Middleware) ClientOption
 
 // Fetch transaction context
 func (c *Client) GetTransaction(ctx context.Context, txHash string) (*TransactionResponse, error)
-
-// Fetch ledger entries for simulation
-func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[string]string, error)
 ```
 
 **Network Support:**
