@@ -45,6 +45,8 @@ func ParseSimulationResponse(resp *SimulationResponse) (*TraceNode, error) {
 		root.AddChild(logNode)
 	}
 
+	root.ApplyHeuristics()
+
 	return root, nil
 }
 
