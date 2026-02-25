@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/dotandev/hintents/internal/logger"
+	"github.com/dotandev/hintents/internal/metrics"
 
 	"github.com/dotandev/hintents/internal/telemetry"
 	"github.com/stellar/go-stellar-sdk/clients/horizonclient"
@@ -354,6 +355,7 @@ func (c *Client) GetTransaction(ctx context.Context, hash string) (*TransactionR
 }
 
 func (c *Client) getTransactionAttempt(ctx context.Context, hash string) (*TransactionResponse, error) {
+	startTime := time.Now()
 	tracer := telemetry.GetTracer()
 	_, span := tracer.Start(ctx, "rpc_get_transaction")
 	span.SetAttributes(
@@ -369,15 +371,23 @@ func (c *Client) getTransactionAttempt(ctx context.Context, hash string) (*Trans
 	if !c.isHealthy(c.HorizonURL) {
 		err := fmt.Errorf("circuit breaker open for %s", c.HorizonURL)
 		span.RecordError(err)
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(c.HorizonURL, string(c.Network), false, time.Since(startTime))
 		return nil, errors.WrapRPCConnectionFailed(err)
 	}
 
 	tx, err := c.Horizon.TransactionDetail(hash)
+	duration := time.Since(startTime)
 	if err != nil {
 		span.RecordError(err)
 		logger.Logger.Error("Failed to fetch transaction", "hash", hash, "error", err, "url", c.HorizonURL)
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(c.HorizonURL, string(c.Network), false, duration)
 		return nil, errors.WrapRPCConnectionFailed(err)
 	}
+
+	// Record successful remote node response
+	metrics.RecordRemoteNodeResponse(c.HorizonURL, string(c.Network), true, duration)
 
 	span.SetAttributes(
 		attribute.Int("envelope.size_bytes", len(tx.EnvelopeXdr)),
@@ -634,6 +644,7 @@ func (c *Client) GetLedgerEntries(ctx context.Context, keys []string) (map[strin
 }
 
 func (c *Client) getLedgerEntriesAttempt(ctx context.Context, keysToFetch []string) (map[string]string, error) {
+	startTime := time.Now()
 	// Always use the dedicated Soroban RPC URL for getLedgerEntries; this is a
 	// Soroban JSON-RPC method and is not served by the Horizon REST API.
 	targetURL := c.SorobanURL
@@ -652,9 +663,12 @@ func (c *Client) getLedgerEntriesAttempt(ctx context.Context, keysToFetch []stri
 
 	// Fail fast if circuit breaker is open for this Soroban endpoint.
 	if !c.isHealthy(targetURL) {
-		return nil, errors.WrapRPCConnectionFailed(
+		err := errors.WrapRPCConnectionFailed(
 			fmt.Errorf("circuit breaker open for %s", targetURL),
 		)
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, time.Since(startTime))
+		return nil, err
 	}
 
 	reqBody := GetLedgerEntriesRequest{
@@ -676,28 +690,42 @@ func (c *Client) getLedgerEntriesAttempt(ctx context.Context, keysToFetch []stri
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.getHTTPClient().Do(req)
+	duration := time.Since(startTime)
 	if err != nil {
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, duration)
 		return nil, errors.WrapRPCConnectionFailed(err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusRequestEntityTooLarge {
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, duration)
 		return nil, errors.WrapRPCResponseTooLarge(targetURL)
 	}
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, duration)
 		return nil, errors.WrapUnmarshalFailed(err, "body read error")
 	}
 
 	var rpcResp GetLedgerEntriesResponse
 	if err := json.Unmarshal(respBytes, &rpcResp); err != nil {
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, duration)
 		return nil, errors.WrapUnmarshalFailed(err, string(respBytes))
 	}
 
 	if rpcResp.Error != nil {
+		// Record failed remote node response
+		metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), false, duration)
 		return nil, errors.WrapRPCError(targetURL, rpcResp.Error.Message, rpcResp.Error.Code)
 	}
+
+	// Record successful remote node response
+	metrics.RecordRemoteNodeResponse(targetURL, string(c.Network), true, duration)
 
 	entries := make(map[string]string)
 	fetchedCount := 0

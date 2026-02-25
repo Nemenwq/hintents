@@ -10,10 +10,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/dotandev/hintents/internal/errors"
 	"github.com/dotandev/hintents/internal/ipc"
 	"github.com/dotandev/hintents/internal/logger"
+	"github.com/dotandev/hintents/internal/metrics"
 )
 
 // Runner handles the execution of the Rust simulator binary
@@ -143,6 +145,13 @@ func abs(path string) string {
 // -------------------- Execution --------------------
 
 func (r *Runner) Run(req *SimulationRequest) (*SimulationResponse, error) {
+	startTime := time.Now()
+	success := false
+	defer func() {
+		// Record simulation execution metrics
+		metrics.RecordSimulationExecution(success)
+	}()
+
 	// Validate request before processing
 	if r.Validator != nil {
 		if err := r.Validator.ValidateRequest(req); err != nil {
@@ -181,7 +190,8 @@ func (r *Runner) Run(req *SimulationRequest) (*SimulationResponse, error) {
 	cmd.Stderr = &stderr
 
 	if err := cmd.Run(); err != nil {
-		logger.Logger.Error("Simulator execution failed", "error", err, "stderr", stderr.String())
+		duration := time.Since(startTime)
+		logger.Logger.Error("Simulator execution failed", "error", err, "stderr", stderr.String(), "duration", duration)
 		return nil, errors.WrapSimCrash(err, stderr.String())
 	}
 
@@ -203,6 +213,7 @@ func (r *Runner) Run(req *SimulationRequest) (*SimulationResponse, error) {
 	}
 
 	resp.ProtocolVersion = &proto.Version
+	success = true
 
 	return &resp, nil
 }

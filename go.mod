@@ -8,6 +8,7 @@ require (
 	github.com/gorilla/rpc v1.2.1
 	github.com/hashicorp/go-version v1.8.0
 	github.com/mattn/go-isatty v0.0.20
+	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.7.0
 	github.com/stellar/go-stellar-sdk v0.1.0
 	github.com/stretchr/testify v1.10.0
