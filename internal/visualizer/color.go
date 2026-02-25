@@ -19,9 +19,6 @@ func Colorize(text string, color string) string {
 	return defaultRenderer.Colorize(text, color)
 }
 
-// Success returns a success indicator.
-func Success() string {
-	return defaultRenderer.Success()
 // ContractBoundary returns a visual separator for cross-contract call transitions.
 func ContractBoundary(fromContract, toContract string) string {
 	if ColorEnabled() {
@@ -40,7 +37,6 @@ func Success() string {
 
 // Warning returns a warning indicator.
 func Warning() string {
-	return defaultRenderer.Warning()
 	if ColorEnabled() {
 		return themeColors("warning") + "[!]" + sgrReset
 	}
@@ -49,10 +45,6 @@ func Warning() string {
 
 // Error returns an error indicator.
 func Error() string {
-	return defaultRenderer.Error()
-}
-
-// Symbol returns a symbol that may be styled.
 	if ColorEnabled() {
 		return themeColors("error") + "[X]" + sgrReset
 	}

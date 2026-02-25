@@ -63,7 +63,6 @@ func NewRunnerWithMockTime(simPathOverride string, debug bool, mockTime int64) (
 	return r, nil
 }
 
-
 // -------------------- Binary Discovery --------------------
 
 func findSimBinary(simPathOverride string) (string, string, error) {
@@ -165,6 +164,7 @@ func (r *Runner) Run(req *SimulationRequest) (*SimulationResponse, error) {
 
 	cmd := exec.Command(r.BinaryPath)
 	cmd.Stdin = bytes.NewReader(inputBytes)
+	cmd.Env = simulatorEnv()
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -212,4 +212,33 @@ func (r *Runner) applyProtocolConfig(req *SimulationRequest, proto *Protocol) er
 	}
 
 	return nil
+}
+
+// simulatorEnv builds the environment variable list for the simulator subprocess.
+// It inherits the current process environment and ensures that RUST_LOG is set
+// to match ERST_LOG_LEVEL so both the Go and Rust sides honour the same level.
+func simulatorEnv() []string {
+	env := os.Environ()
+
+	erstLevel := os.Getenv("ERST_LOG_LEVEL")
+	if erstLevel == "" {
+		return env
+	}
+
+	rustFilter := logger.RustLogFilter(erstLevel)
+
+	// Replace an existing RUST_LOG entry or append a new one.
+	found := false
+	for i, kv := range env {
+		if len(kv) > 9 && kv[:9] == "RUST_LOG=" {
+			env[i] = "RUST_LOG=" + rustFilter
+			found = true
+			break
+		}
+	}
+	if !found {
+		env = append(env, "RUST_LOG="+rustFilter)
+	}
+
+	return env
 }

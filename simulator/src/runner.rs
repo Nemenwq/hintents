@@ -19,9 +19,12 @@ pub struct SimHost {
 #[allow(dead_code)]
 impl SimHost {
     /// Initialize a new Host with optional budget settings and resource calibration.
-    pub fn new(budget_limits: Option<(u64, u64)>, calibration: Option<crate::types::ResourceCalibration>) -> Self {
+    pub fn new(
+        budget_limits: Option<(u64, u64)>,
+        calibration: Option<crate::types::ResourceCalibration>,
+    ) -> Self {
         let budget = Budget::default();
-        
+
         if let Some(calib) = calibration {
             use soroban_env_host::budget::CostModel;
             use soroban_env_host::xdr::ContractCostType;

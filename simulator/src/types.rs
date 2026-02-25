@@ -23,6 +23,7 @@ pub struct SimulationRequest {
     pub timestamp: String,
     pub mock_base_fee: Option<u32>,
     pub mock_gas_price: Option<u64>,
+    pub resource_calibration: Option<ResourceCalibration>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

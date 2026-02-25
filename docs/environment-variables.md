@@ -6,7 +6,26 @@ This document provides a comprehensive reference for all environment variables u
 
 | Variable Name | Category | Description | Default Value | Example |
 |---------------|----------|-------------|---------------|---------|
+| `ERST_LOG_LEVEL` | Logging | Unified log level for both the Go CLI and the Rust simulator. Accepted values: `trace`, `debug`, `info`, `warn`, `error`. | `info` | `debug` |
 | `ERST_SIMULATOR_PATH` | Simulator | Custom path to the `erst-sim` binary. If not set, the system will search in common locations (current directory, development path, and system PATH). | *(auto-detected)* | `/usr/local/bin/erst-sim` |
+
+## Unified Logging
+
+Setting `ERST_LOG_LEVEL` controls verbosity across the entire tool chain. The Go
+CLI reads the variable at startup to configure its `slog` logger, and when
+spawning the Rust simulator it translates the value into a `RUST_LOG` filter so
+both processes honour the same level.
+
+```bash
+export ERST_LOG_LEVEL=debug
+erst debug <transaction-hash>
+```
+
+You can still override the Rust side independently by setting `RUST_LOG`
+directly; when both variables are present the simulator prefers `ERST_LOG_LEVEL`.
+
+The `--verbose` / `-v` flag on the `debug` command is a shorthand that sets the
+log level to `debug` for that invocation.
 
 ## Variable Search Order
 
