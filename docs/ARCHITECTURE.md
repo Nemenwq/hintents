@@ -613,6 +613,21 @@ graph LR
     D -->|Verify| E
 ```
 
+### CI/CD & Pipeline Standardization
+
+CI and automation are treated as part of the architecture:
+
+- **Workflows**:
+  - General CI: `.github/workflows/ci.yml`
+  - Strict linting: `.github/workflows/strict-lint.yml`
+  - CI robustness checks: `.github/workflows/ci-standardization.yml`
+- **Helper scripts** (path-stable, independent of current working directory):
+  - `scripts/validate-ci.sh` — validates CI configuration and versions
+  - `scripts/test-ci-locally.sh` — mirrors CI checks locally
+  - `scripts/lint-strict.sh` / `scripts/test-strict-linting.sh` — strict linting and verification
+
+All scripts compute the repository root from their own location instead of assuming they are invoked from the project root, removing implicit global state dependencies from the CI/CD pipeline.
+
 ---
 
 ## Troubleshooting Guide
