@@ -21,6 +21,7 @@ type Runner struct {
 	BinaryPath string
 	Debug      bool
 	MockTime   int64 // non-zero overrides Timestamp in every SimulationRequest
+	Validator  *Validator
 }
 
 // Compile-time check to ensure Runner implements RunnerInterface
@@ -64,7 +65,6 @@ func NewRunnerWithMockTime(simPathOverride string, debug bool, mockTime int64) (
 	r.MockTime = mockTime
 	return r, nil
 }
-
 
 // -------------------- Binary Discovery --------------------
 
@@ -194,7 +194,7 @@ func (r *Runner) Run(req *SimulationRequest) (*SimulationResponse, error) {
 	// If the simulator returned a logical error inside the response payload,
 	// classify it into a unified ErstError before returning to the caller.
 	if resp.Error != "" {
-		classified := ipc.Error{Message: resp.Error}.ToErstError()
+		classified := (&ipc.Error{Message: resp.Error}).ToErstError()
 		logger.Logger.Error("Simulator returned error",
 			"code", classified.Code,
 			"original", classified.OriginalError,

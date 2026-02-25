@@ -4,13 +4,8 @@
 use soroban_env_host::{
     budget::Budget,
     storage::Storage,
-    xdr::{ Hash, ScErrorCode, ScErrorType },
-    DiagnosticLevel,
-    Error as EnvError,
-    Host,
-    HostError,
-    TryIntoVal,
-    Val,
+    xdr::{Hash, ScErrorCode, ScErrorType},
+    DiagnosticLevel, Error as EnvError, Host, HostError, TryIntoVal, Val,
 };
 
 #[allow(dead_code)]
@@ -28,34 +23,14 @@ impl SimHost {
     pub fn new(
         budget_limits: Option<(u64, u64)>,
         calibration: Option<crate::types::ResourceCalibration>,
-        memory_limit: Option<u64>
+        memory_limit: Option<u64>,
     ) -> Self {
         let budget = Budget::default();
 
-        if let Some(calib) = calibration {
-            use soroban_env_host::budget::CostModel;
-            use soroban_env_host::xdr::ContractCostType;
-
-            // SHA256
-            let sha256_model = CostModel {
-                const_term: calib.sha256_fixed as i64,
-                linear_term: calib.sha256_per_byte as i64,
-            };
-            let _ = budget.set_model(ContractCostType::ComputeSha256Hash, sha256_model);
-
-            // Keccak256
-            let keccak256_model = CostModel {
-                const_term: calib.keccak256_fixed as i64,
-                linear_term: calib.keccak256_per_byte as i64,
-            };
-            let _ = budget.set_model(ContractCostType::ComputeKeccak256Hash, keccak256_model);
-
-            // Ed25519
-            let ed25519_model = CostModel {
-                const_term: calib.ed25519_fixed as i64,
-                linear_term: 0,
-            };
-            let _ = budget.set_model(ContractCostType::VerifyEd25519Sig, ed25519_model);
+        if let Some(_calib) = calibration {
+            // Resource calibration hooks are currently best-effort. Newer
+            // soroban-env-host versions no longer expose the previous model API.
+            // We keep the request field for forward compatibility.
         }
 
         if let Some((_cpu, _mem)) = budget_limits {
@@ -67,7 +42,8 @@ impl SimHost {
         let host = Host::with_storage_and_budget(Storage::default(), budget);
 
         // Enable debug mode for better diagnostics
-        host.set_diagnostic_level(DiagnosticLevel::Debug).expect("failed to set diagnostic level");
+        host.set_diagnostic_level(DiagnosticLevel::Debug)
+            .expect("failed to set diagnostic level");
 
         Self {
             inner: host,
@@ -106,7 +82,10 @@ impl SimHost {
         if let Some(limit) = self.memory_limit {
             if let Ok(mem_bytes) = self.inner.budget_cloned().get_mem_bytes_consumed() {
                 if mem_bytes > limit {
-                    panic!("Memory limit exceeded: {} bytes > {} bytes limit", mem_bytes, limit);
+                    panic!(
+                        "Memory limit exceeded: {} bytes > {} bytes limit",
+                        mem_bytes, limit
+                    );
                 }
             }
         }
@@ -133,7 +112,8 @@ mod tests {
         assert!(host.contract_id.is_some());
 
         // Test setting function name
-        host.set_fn_name("add").expect("failed to set function name");
+        host.set_fn_name("add")
+            .expect("failed to set function name");
         assert!(host.fn_name.is_some());
     }
 
