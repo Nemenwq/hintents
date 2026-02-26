@@ -282,6 +282,7 @@ func renderProjectGitignoreBlock() string {
 .erst/traces/
 *.trace.json
 *.flamegraph.svg
+*.flamegraph.html
 `
 }
 

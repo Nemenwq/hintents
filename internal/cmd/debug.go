@@ -610,14 +610,31 @@ Local WASM Replay Mode:
 			return errors.WrapSimulationLogicError("no simulation results generated")
 		}
 
-		// Save flamegraph SVG with dark-mode CSS when profiling is enabled
+		// Save flamegraph with dark-mode CSS when profiling is enabled
 		if ProfileFlag && lastSimResp.Flamegraph != "" {
-			svgContent := visualizer.InjectDarkMode(lastSimResp.Flamegraph)
-			svgFilename := txHash + ".flamegraph.svg"
-			if err := os.WriteFile(svgFilename, []byte(svgContent), 0644); err != nil {
+			// Determine export format
+			var format visualizer.ExportFormat
+			switch ProfileFormatFlag {
+			case "html":
+				format = visualizer.FormatHTML
+			case "svg":
+				format = visualizer.FormatSVG
+			default:
+				format = visualizer.FormatHTML // Default to interactive HTML
+			}
+
+			// Generate output in the requested format
+			content := visualizer.ExportFlamegraph(lastSimResp.Flamegraph, format)
+			filename := txHash + format.GetFileExtension()
+
+			if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
 				fmt.Printf("%s Failed to write flamegraph: %v\n", visualizer.Warning(), err)
 			} else {
-				fmt.Printf("%s Flamegraph saved: %s\n", visualizer.Success(), svgFilename)
+				formatDesc := "interactive HTML"
+				if format == visualizer.FormatSVG {
+					formatDesc = "SVG"
+				}
+				fmt.Printf("%s Flamegraph saved: %s (%s)\n", visualizer.Success(), filename, formatDesc)
 			}
 		}
 

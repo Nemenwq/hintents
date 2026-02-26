@@ -20,6 +20,7 @@ import (
 	"github.com/dotandev/hintents/internal/errors"
 	"github.com/dotandev/hintents/internal/ipc"
 	"github.com/dotandev/hintents/internal/logger"
+	"github.com/dotandev/hintents/internal/metrics"
 )
 
 // Runner handles the execution of the Rust simulator binary
@@ -192,6 +193,12 @@ func getSimulatorCoverageLCOVPath(req *SimulationRequest) *string {
 // -------------------- Execution --------------------
 
 func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationResponse, error) {
+	success := false
+	defer func() {
+		// Record simulation execution metrics
+		metrics.RecordSimulationExecution(success)
+	}()
+
 	if req == nil {
 		return nil, errors.NewSimErrorMsg(errors.CodeValidationFailed, "simulation request cannot be nil")
 	}
@@ -302,6 +309,7 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	}
 
 	resp.ProtocolVersion = &proto.Version
+	success = true
 
 	return &resp, nil
 }
