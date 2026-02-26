@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/dotandev/hintents/internal/errors"
 )
@@ -175,7 +173,6 @@ var validNetworks = map[string]bool{
 	string(NetworkStandalone): true,
 }
 
-// Config represents the general configuration for erst
 type Config struct {
 	RpcUrl            string   `json:"rpc_url,omitempty"`
 	RpcUrls           []string `json:"rpc_urls,omitempty"`
@@ -185,33 +182,12 @@ type Config struct {
 	LogLevel          string   `json:"log_level,omitempty"`
 	CachePath         string   `json:"cache_path,omitempty"`
 	RPCToken          string   `json:"rpc_token,omitempty"`
-	// CrashReporting enables opt-in anonymous crash reporting.
-	// Set via crash_reporting = true in config or ERST_CRASH_REPORTING=true.
-	CrashReporting bool `json:"crash_reporting,omitempty"`
-	// CrashEndpoint is a custom HTTPS URL that receives JSON crash reports.
-	// Set via crash_endpoint in config or ERST_CRASH_ENDPOINT.
-	CrashEndpoint string `json:"crash_endpoint,omitempty"`
-	// CrashSentryDSN is a Sentry Data Source Name for crash reporting.
-	// Set via crash_sentry_dsn in config or ERST_SENTRY_DSN.
-	CrashSentryDSN string `json:"crash_sentry_dsn,omitempty"`
-	// RequestTimeout is the HTTP request timeout in seconds for all RPC calls.
-	// Set via request_timeout in config or ERST_REQUEST_TIMEOUT.
-	// Defaults to 15 seconds.
-	RequestTimeout int `json:"request_timeout,omitempty"`
+	CrashReporting    bool     `json:"crash_reporting,omitempty"`
+	CrashEndpoint     string   `json:"crash_endpoint,omitempty"`
+	CrashSentryDSN    string   `json:"crash_sentry_dsn,omitempty"`
+	RequestTimeout    int      `json:"request_timeout,omitempty"`
 }
 
-const defaultRequestTimeout = 15
-
-var defaultConfig = &Config{
-	RpcUrl:         "https://soroban-testnet.stellar.org",
-	Network:        NetworkTestnet,
-	SimulatorPath:  "",
-	LogLevel:       "info",
-	CachePath:      filepath.Join(os.ExpandEnv("$HOME"), ".erst", "cache"),
-	RequestTimeout: defaultRequestTimeout,
-}
-
-// GetGeneralConfigPath returns the path to the general configuration file
 func GetGeneralConfigPath() (string, error) {
 	configDir, err := GetConfigPath()
 	if err != nil {
@@ -220,14 +196,12 @@ func GetGeneralConfigPath() (string, error) {
 	return filepath.Join(configDir, "config.json"), nil
 }
 
-// LoadConfig loads the general configuration from disk (JSON format)
 func LoadConfig() (*Config, error) {
 	configPath, err := GetGeneralConfigPath()
 	if err != nil {
 		return nil, err
 	}
 
-	// If file doesn't exist, return default config
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return DefaultConfig(), nil
 	}
@@ -388,7 +362,6 @@ func SaveConfig(config *Config) error {
 		return err
 	}
 
-	// Ensure config directory exists
 	configDir := filepath.Dir(configPath)
 	if err := os.MkdirAll(configDir, 0700); err != nil {
 		return errors.WrapConfigError("failed to create config directory", err)
@@ -399,7 +372,6 @@ func SaveConfig(config *Config) error {
 		return errors.WrapConfigError("failed to marshal config", err)
 	}
 
-	// Write with restricted permissions (owner only)
 	if err := os.WriteFile(configPath, data, 0600); err != nil {
 		return errors.WrapConfigError("failed to write config file", err)
 	}
