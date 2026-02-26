@@ -342,7 +342,7 @@ mod tests {
 
         let loc = mapper.map_wasm_offset_to_source(0x18).expect("mapping");
         assert_eq!(loc.line, 10);
-        assert_eq!(loc.column, Some(1));
+        assert_eq!(loc.column, 1);
 
         let loc = mapper.map_wasm_offset_to_source(0x25).expect("mapping");
         assert_eq!(loc.line, 20);

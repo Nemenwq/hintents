@@ -13,6 +13,8 @@ mod stack_trace;
 mod types;
 mod vm;
 mod wasm;
+mod wasm_types;
+mod snapshot;
 
 use crate::gas_optimizer::{BudgetMetrics, GasOptimizationAdvisor, CPU_LIMIT, MEMORY_LIMIT};
 use crate::source_mapper::SourceMapper;
@@ -300,6 +302,7 @@ fn categorize_events(events: &soroban_env_host::events::Events) -> Vec<Categoriz
                     // failed_call=true means the call that emitted this event
                     // actually failed; so a successful call is the inverse.
                     in_successful_contract_call: !e.failed_call,
+                    wasm_instruction,
                 },
             }
         })
@@ -750,7 +753,7 @@ fn main() {
                 // mappable source location so callers can correlate failures.
                 source_location: source_mapper
                     .as_ref()
-                    .and_then(|m| m.map_wasm_offset_to_source(0))
+                    .and_then(|m: &SourceMapper| m.map_wasm_offset_to_source(0))
                     .and_then(|loc| serde_json::to_string(&loc).ok()),
                 wasm_offset: None,
                 linear_memory_dump: None,
@@ -1023,8 +1026,13 @@ pub fn decode_error(raw: &str) -> String {
             .to_string();
     }
 
-    if lower.contains("budget") || lower.contains("cpu limit") || lower.contains("mem limit") {
-        return "Resource limit exceeded — the transaction consumed more CPU instructions or memory than the protocol-21 budget allows.".to_string();
+    // Look for "Instruction: <opcode>" pattern in the data
+    if let Some(start) = data.find("Instruction: ") {
+        let instr_start = start + "Instruction: ".len();
+        let rest = &data[instr_start..];
+        // Find the end of the instruction (quote or end of string)
+        let end = rest.find('"').unwrap_or(rest.len());
+        return Some(rest[..end].to_string());
     }
 
     if lower.contains("missing") || lower.contains("not found") {
@@ -1045,6 +1053,7 @@ pub fn decode_error(raw: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stack_trace::decode_error;
 
     #[test]
     fn test_decode_vm_traps() {
