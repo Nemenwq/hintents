@@ -158,3 +158,33 @@ erst generate-test --name my_regression_test <tx-hash>
 Generated tests are written to:
 - **Go tests**: `internal/simulator/regression_tests/regression_<name>_test.go`
 - **Rust tests**: `simulator/tests/regression/regression_<name>.rs`
+
+---
+
+## erst export
+
+Export debugging artifacts from the active in-memory session.
+
+### Usage
+
+```bash
+erst export --snapshot <path> [--include-memory]
+```
+
+### Examples
+
+```bash
+# Export ledger snapshot only
+erst export --snapshot state.json
+
+# Export ledger snapshot + Wasm linear memory dump (if simulator response includes one)
+erst export --snapshot state-with-memory.json --include-memory
+```
+
+### Decode memory from snapshot
+
+```bash
+erst export decode-memory --snapshot state-with-memory.json --offset 0 --length 256
+```
+
+The `decode-memory` utility prints a hex + ASCII view to help inspect segments of encoded linear memory.
