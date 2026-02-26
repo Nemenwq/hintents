@@ -137,12 +137,12 @@ fi
 
 ### What's Broken
 
-- ✅ Code is correct (no syntax errors)
-- ✅ Tests are correct (would pass if they could run)
-- ✅ Documentation is complete
-- ❌ CI can't verify dependencies
-- ❌ CI can't run tests
-- ❌ CI can't build the project
+- [OK] Code is correct (no syntax errors)
+- [OK] Tests are correct (would pass if they could run)
+- [OK] Documentation is complete
+- [FAIL] CI can't verify dependencies
+- [FAIL] CI can't run tests
+- [FAIL] CI can't build the project
 
 ### What Works
 
@@ -189,14 +189,14 @@ go vet ./internal/metrics/...
 
 Once go.sum is updated and committed, all CI checks will pass:
 
-- ✅ License headers check
-- ✅ Go dependency verification
-- ✅ Go formatting check
-- ✅ Go vet check
-- ✅ golangci-lint check
-- ✅ Tests (race detector)
-- ✅ Tests (all platforms)
-- ✅ Build
+- [OK] License headers check
+- [OK] Go dependency verification
+- [OK] Go formatting check
+- [OK] Go vet check
+- [OK] golangci-lint check
+- [OK] Tests (race detector)
+- [OK] Tests (all platforms)
+- [OK] Build
 
 ## Summary
 

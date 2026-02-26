@@ -1,21 +1,21 @@
-# ✅ Interactive Flamegraph Export - Implementation Complete
+# [OK] Interactive Flamegraph Export - Implementation Complete
 
 ## Summary
 
 Successfully implemented standalone interactive HTML export for SVG flamegraphs. The feature is production-ready with comprehensive tests, documentation, and verification.
 
-## ✅ Deliverables Completed
+## [OK] Deliverables Completed
 
-### 1. ✅ Updated Export Code
+### 1. [OK] Updated Export Code
 - **File**: `internal/visualizer/flamegraph.go`
 - **Functions**:
   - `GenerateInteractiveHTML()` - Wraps SVG in interactive HTML
   - `ExportFlamegraph()` - Main export function with format selection
   - `ExportFormat` type with `FormatHTML` and `FormatSVG` constants
   - `GetFileExtension()` - Returns appropriate file extension
-- **Status**: ✅ Implemented, no diagnostics
+- **Status**: [OK] Implemented, no diagnostics
 
-### 2. ✅ Inline JS and CSS
+### 2. [OK] Inline JS and CSS
 - **Location**: `internal/visualizer/flamegraph.go` (const `interactiveHTML`)
 - **Features**:
   - Hover tooltips with frame details
@@ -24,9 +24,9 @@ Successfully implemented standalone interactive HTML export for SVG flamegraphs.
   - Dark mode support (CSS media queries)
   - Responsive design
 - **Code Quality**: Minimal, readable, well-commented
-- **Status**: ✅ Complete, self-contained (no external dependencies)
+- **Status**: [OK] Complete, self-contained (no external dependencies)
 
-### 3. ✅ Documentation
+### 3. [OK] Documentation
 - **Created**:
   - `docs/INTERACTIVE_FLAMEGRAPH.md` - Comprehensive guide (200+ lines)
   - `docs/FLAMEGRAPH_QUICK_START.md` - Quick reference card
@@ -37,9 +37,9 @@ Successfully implemented standalone interactive HTML export for SVG flamegraphs.
 - **CLI Flags Documented**:
   - `--profile` - Enable profiling
   - `--profile-format` - Choose format (html/svg, default: html)
-- **Status**: ✅ Complete with examples
+- **Status**: [OK] Complete with examples
 
-### 4. ✅ Tests and Verification
+### 4. [OK] Tests and Verification
 - **Test File**: `internal/visualizer/flamegraph_test.go`
 - **Test Coverage**:
   - HTML generation and structure
@@ -49,23 +49,23 @@ Successfully implemented standalone interactive HTML export for SVG flamegraphs.
   - Edge cases (empty input, invalid format)
 - **Verification Script**: `scripts/verify_flamegraph.sh`
   - Automated checks for all requirements
-  - All checks passing ✅
+  - All checks passing [OK]
 - **Manual Verification**: Documented in `FLAMEGRAPH_IMPLEMENTATION.md`
-- **Status**: ✅ Comprehensive coverage, all passing
+- **Status**: [OK] Comprehensive coverage, all passing
 
-## 🎯 Requirements Met
+## [TARGET] Requirements Met
 
 | Requirement | Status | Notes |
 |-------------|--------|-------|
-| Single self-contained HTML file | ✅ | All CSS/JS inlined, no external assets |
-| Hover tooltips | ✅ | Shows function name, duration, percentage |
-| Click-to-zoom | ✅ | With reset button |
-| Search/highlight | ✅ | Case-insensitive, with clear button |
-| Responsive design | ✅ | Works on different viewport sizes |
-| Dark mode support | ✅ | CSS media queries for system theme |
-| Preserve SVG export | ✅ | Available via `--profile-format svg` |
-| Documentation | ✅ | Comprehensive with examples |
-| Tests | ✅ | Full coverage, all passing |
+| Single self-contained HTML file | [OK] | All CSS/JS inlined, no external assets |
+| Hover tooltips | [OK] | Shows function name, duration, percentage |
+| Click-to-zoom | [OK] | With reset button |
+| Search/highlight | [OK] | Case-insensitive, with clear button |
+| Responsive design | [OK] | Works on different viewport sizes |
+| Dark mode support | [OK] | CSS media queries for system theme |
+| Preserve SVG export | [OK] | Available via `--profile-format svg` |
+| Documentation | [OK] | Comprehensive with examples |
+| Tests | [OK] | Full coverage, all passing |
 
 ## 📁 Files Changed
 
@@ -85,7 +85,7 @@ Successfully implemented standalone interactive HTML export for SVG flamegraphs.
 5. `FLAMEGRAPH_IMPLEMENTATION.md` - Implementation summary
 6. `IMPLEMENTATION_COMPLETE.md` - This file
 
-## 🚀 Usage
+## [DEPLOY] Usage
 
 ### Generate Interactive HTML (Default)
 ```bash
@@ -99,28 +99,28 @@ erst debug --profile --profile-format svg <transaction-hash>
 # Output: <tx-hash>.flamegraph.svg
 ```
 
-## 🧪 Verification Status
+## [TEST] Verification Status
 
-### Automated Checks ✅
+### Automated Checks [OK]
 ```bash
 ./scripts/verify_flamegraph.sh
-# Result: All checks passed ✅
+# Result: All checks passed [OK]
 ```
 
-### Code Diagnostics ✅
+### Code Diagnostics [OK]
 ```bash
 # No syntax errors, linting issues, or type errors
 # All files: internal/visualizer/flamegraph.go, flamegraph_test.go, 
 #            internal/cmd/root.go, debug.go, init.go
 ```
 
-### Test Coverage ✅
+### Test Coverage [OK]
 - 7 test functions covering all code paths
 - Edge cases handled (empty input, invalid format)
 - Format selection logic verified
 - Interactive features validated
 
-## 📝 Commit Message
+## [LOG] Commit Message
 
 ```
 feat(export): output interactive standalone HTML file for SVG flamegraph
@@ -202,7 +202,7 @@ This implementation follows best practices for:
 
 ---
 
-**Status**: ✅ COMPLETE AND READY FOR PRODUCTION
+**Status**: [OK] COMPLETE AND READY FOR PRODUCTION
 **Date**: 2026-02-26
 **Implementation Time**: ~1 hour
 **Lines of Code**: ~400 (implementation + tests + docs)

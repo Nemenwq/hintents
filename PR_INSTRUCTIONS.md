@@ -1,13 +1,13 @@
 # Pull Request Instructions
 
-## ✅ Branch Created and Committed
+## [OK] Branch Created and Committed
 
 Your changes are now on a new feature branch ready for a PR!
 
 **Branch**: `feat/interactive-flamegraph-export`
 **Commit**: `1f7d480`
 
-## 📝 Next Steps
+## [LOG] Next Steps
 
 ### 1. Push the Branch
 
@@ -36,11 +36,11 @@ Replace raw SVG export with interactive HTML as default format. The new HTML exp
 
 ## Features
 
-- ✨ Interactive HTML export with hover tooltips, click-to-zoom, and search
-- 📦 All CSS and JavaScript inlined (no external dependencies)
-- 🎨 Responsive design with automatic dark mode support
-- 🚀 New `--profile-format` flag to choose between html (default) and svg
-- ✅ Comprehensive test coverage and documentation
+- * Interactive HTML export with hover tooltips, click-to-zoom, and search
+- [PKG] All CSS and JavaScript inlined (no external dependencies)
+- [UI] Responsive design with automatic dark mode support
+- [DEPLOY] New `--profile-format` flag to choose between html (default) and svg
+- [OK] Comprehensive test coverage and documentation
 - 🔄 Backward compatibility: SVG export still available
 
 ## Usage
@@ -77,7 +77,7 @@ erst debug --profile --profile-format svg <transaction-hash>
 ### Tests
 
 - 7 new test functions with comprehensive coverage
-- All tests passing ✅
+- All tests passing [OK]
 - Automated verification script included
 
 ### Documentation
@@ -157,7 +157,7 @@ This implementation follows best practices for standalone HTML files:
 The interactive features use vanilla JavaScript for simplicity and compatibility with all modern browsers (Chrome 88+, Firefox 78+, Safari 14+).
 ```
 
-## 📊 PR Statistics
+## [STATS] PR Statistics
 
 - **Files Modified**: 6
 - **Files Created**: 8
@@ -166,7 +166,7 @@ The interactive features use vanilla JavaScript for simplicity and compatibility
 - **Test Coverage**: 7 new tests
 - **Documentation**: ~25KB
 
-## 🔍 Review Checklist for Reviewers
+## [SEARCH] Review Checklist for Reviewers
 
 ### Code Quality
 - [ ] Implementation follows Go best practices
@@ -197,7 +197,7 @@ The interactive features use vanilla JavaScript for simplicity and compatibility
 - [ ] Breaking changes documented
 - [ ] Migration path clear
 
-## 🚀 After PR is Merged
+## [DEPLOY] After PR is Merged
 
 1. Delete the feature branch (GitHub will prompt you)
 2. Pull the latest main branch:
@@ -217,4 +217,4 @@ The interactive features use vanilla JavaScript for simplicity and compatibility
 
 ---
 
-**Ready to push and create PR!** 🚀
+**Ready to push and create PR!** [DEPLOY]

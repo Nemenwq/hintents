@@ -48,11 +48,11 @@ go vet ./internal/metrics/...
 
 ## CI Checks That Will Pass After Fix
 
-1. ✅ `go mod verify` - Will pass with updated go.sum
-2. ✅ `go test` - Tests will compile and run
-3. ✅ `go build` - Code will compile successfully
-4. ✅ License headers - Already correct
-5. ✅ Formatting - Already correct
+1. [OK] `go mod verify` - Will pass with updated go.sum
+2. [OK] `go test` - Tests will compile and run
+3. [OK] `go build` - Code will compile successfully
+4. [OK] License headers - Already correct
+5. [OK] Formatting - Already correct
 
 ## Alternative: Manual go.sum Update
 

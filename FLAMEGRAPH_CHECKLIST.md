@@ -1,6 +1,6 @@
 # Interactive Flamegraph Export - Final Checklist
 
-## ✅ Implementation Checklist
+## [OK] Implementation Checklist
 
 ### Core Functionality
 - [x] `GenerateInteractiveHTML()` function implemented
@@ -78,7 +78,7 @@
 - [x] `IMPLEMENTATION_COMPLETE.md` - Created
 - [x] `FLAMEGRAPH_CHECKLIST.md` - Created (this file)
 
-## 📋 Manual Verification Checklist
+## [LIST] Manual Verification Checklist
 
 ### Before Commit
 - [ ] Run verification script: `./scripts/verify_flamegraph.sh`
@@ -108,25 +108,25 @@
 - [ ] Safari 14+
 - [ ] Opera 74+
 
-## 🎯 Requirements Verification
+## [TARGET] Requirements Verification
 
 | Requirement | Status | Evidence |
 |-------------|--------|----------|
-| Single self-contained HTML file | ✅ | All CSS/JS inlined, verified in code |
-| No external dependencies | ✅ | Verification script checks for http:// |
-| Hover tooltips | ✅ | `handleMouseOver` function in template |
-| Click-to-zoom | ✅ | `handleClick` function in template |
-| Reset zoom | ✅ | `resetZoom` function + button |
-| Search/highlight | ✅ | `performSearch` function + input |
-| Clear highlights | ✅ | `clearSearch` function + button |
-| Responsive design | ✅ | CSS media queries + flexible layout |
-| Dark mode support | ✅ | `prefers-color-scheme` media queries |
-| SVG export preserved | ✅ | `--profile-format svg` flag |
-| Documentation | ✅ | 4 docs files + README update |
-| Tests | ✅ | 7 test functions, all passing |
-| CLI flags | ✅ | `--profile` and `--profile-format` |
+| Single self-contained HTML file | [OK] | All CSS/JS inlined, verified in code |
+| No external dependencies | [OK] | Verification script checks for http:// |
+| Hover tooltips | [OK] | `handleMouseOver` function in template |
+| Click-to-zoom | [OK] | `handleClick` function in template |
+| Reset zoom | [OK] | `resetZoom` function + button |
+| Search/highlight | [OK] | `performSearch` function + input |
+| Clear highlights | [OK] | `clearSearch` function + button |
+| Responsive design | [OK] | CSS media queries + flexible layout |
+| Dark mode support | [OK] | `prefers-color-scheme` media queries |
+| SVG export preserved | [OK] | `--profile-format svg` flag |
+| Documentation | [OK] | 4 docs files + README update |
+| Tests | [OK] | 7 test functions, all passing |
+| CLI flags | [OK] | `--profile` and `--profile-format` |
 
-## 📊 Statistics
+## [STATS] Statistics
 
 ### Code Changes
 - **Files Modified**: 6
@@ -151,7 +151,7 @@
   - Documentation: 60 minutes
   - Verification: 10 minutes
 
-## 🚀 Ready to Commit
+## [DEPLOY] Ready to Commit
 
 All checklist items completed. Ready to commit with:
 
@@ -199,7 +199,7 @@ EOF
 git push
 ```
 
-## 📝 Notes
+## [LOG] Notes
 
 ### What Went Well
 - Clean implementation with minimal code
@@ -222,6 +222,6 @@ git push
 
 ---
 
-**Status**: ✅ ALL CHECKS PASSED - READY FOR PRODUCTION
+**Status**: [OK] ALL CHECKS PASSED - READY FOR PRODUCTION
 **Date**: 2026-02-26
 **Verified By**: Automated verification script + manual review
