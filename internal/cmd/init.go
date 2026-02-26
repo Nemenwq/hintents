@@ -26,8 +26,9 @@ var (
 )
 
 var initCmd = &cobra.Command{
-	Use:   "init [directory]",
-	Short: "Scaffold a local Erst debugging workspace",
+	Use:     "init [directory]",
+	GroupID: "development",
+	Short:   "Scaffold a local Erst debugging workspace",
 	Long: `Create project-local scaffolding for Erst debugging workflows.
 
 This command generates:
