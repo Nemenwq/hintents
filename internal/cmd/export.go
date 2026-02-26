@@ -157,3 +157,24 @@ func init() {
 	exportCmd.AddCommand(exportDecodeMemoryCmd)
 	rootCmd.AddCommand(exportCmd)
 }
+
+func extractLinearMemoryBase64(simResponseJSON string) (string, error) {
+	if simResponseJSON == "" {
+		return "", nil
+	}
+
+	var payload struct {
+		LinearMemoryBase64 string `json:"linear_memory_base64"`
+		LinearMemory       string `json:"linear_memory"`
+	}
+
+	if err := json.Unmarshal([]byte(simResponseJSON), &payload); err != nil {
+		return "", err
+	}
+
+	if payload.LinearMemoryBase64 != "" {
+		return payload.LinearMemoryBase64, nil
+	}
+
+	return payload.LinearMemory, nil
+}
