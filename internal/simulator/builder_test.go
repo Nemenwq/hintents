@@ -11,35 +11,6 @@ import (
 	internalErrors "github.com/dotandev/hintents/internal/errors"
 )
 
-func TestSimulationRequestBuilder_WithRestorePreamble(t *testing.T) {
-	builder := NewSimulationRequestBuilder()
-
-	preamble := map[string]interface{}{
-		"foo":   "bar",
-		"count": 42,
-	}
-
-	req, err := builder.
-		WithEnvelopeXDR("envelope").
-		WithResultMetaXDR("result").
-		WithRestorePreamble(preamble).
-		Build()
-
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
-	if req.RestorePreamble == nil {
-		t.Fatalf("expected RestorePreamble to be set")
-	}
-	if req.RestorePreamble["foo"] != "bar" {
-		t.Errorf("expected RestorePreamble['foo'] to be 'bar', got: %v", req.RestorePreamble["foo"])
-	}
-	if req.RestorePreamble["count"] != 42 {
-		t.Errorf("expected RestorePreamble['count'] to be 42, got: %v", req.RestorePreamble["count"])
-	}
-}
-
 func TestSimulationRequestBuilder_Basic(t *testing.T) {
 	builder := NewSimulationRequestBuilder()
 
@@ -284,6 +255,71 @@ func TestSimulationRequestBuilder_Reset(t *testing.T) {
 	}
 }
 
+func TestSimulationRequestBuilder_WithMockBaseFee(t *testing.T) {
+	builder := NewSimulationRequestBuilder()
+
+	req, err := builder.
+		WithEnvelopeXDR("envelope").
+		WithResultMetaXDR("result").
+		WithMockBaseFee(5000).
+		Build()
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if req.MockBaseFee == nil {
+		t.Fatal("expected MockBaseFee to be set")
+	}
+
+	if *req.MockBaseFee != 5000 {
+		t.Errorf("expected MockBaseFee to be 5000, got: %d", *req.MockBaseFee)
+	}
+}
+
+func TestSimulationRequestBuilder_WithMockBaseFee_ZeroValue(t *testing.T) {
+	builder := NewSimulationRequestBuilder()
+
+	req, err := builder.
+		WithEnvelopeXDR("envelope").
+		WithResultMetaXDR("result").
+		WithMockBaseFee(0).
+		Build()
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if req.MockBaseFee == nil {
+		t.Fatal("expected MockBaseFee to be set")
+	}
+
+	if *req.MockBaseFee != 0 {
+		t.Errorf("expected MockBaseFee to be 0, got: %d", *req.MockBaseFee)
+	}
+}
+
+func TestSimulationRequestBuilder_ResetClearsMockBaseFee(t *testing.T) {
+	builder := NewSimulationRequestBuilder()
+
+	req, err := builder.
+		WithEnvelopeXDR("envelope").
+		WithResultMetaXDR("result").
+		WithMockBaseFee(999).
+		Reset().
+		WithEnvelopeXDR("envelope2").
+		WithResultMetaXDR("result2").
+		Build()
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if req.MockBaseFee != nil {
+		t.Errorf("expected MockBaseFee to be nil after reset, got: %v", req.MockBaseFee)
+	}
+}
+
 func TestSimulationRequestBuilder_MethodChaining(t *testing.T) {
 	// Test that all methods return the builder for chaining
 	builder := NewSimulationRequestBuilder()
@@ -293,6 +329,7 @@ func TestSimulationRequestBuilder_MethodChaining(t *testing.T) {
 		WithResultMetaXDR("result").
 		WithLedgerEntry("key1", "value1").
 		WithLedgerEntries(map[string]string{"key2": "value2"}).
+		WithMockBaseFee(123).
 		Reset().
 		WithEnvelopeXDR("envelope2").
 		WithResultMetaXDR("result2")

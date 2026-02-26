@@ -26,6 +26,26 @@ jobs:
       - name: Check license headers in Go and Rust files
         run: ./scripts/check-license-headers.sh
 
+      - name: Guard against conflict markers and leaked secrets
+        run: |
+          set -euo pipefail
+
+          echo "Checking for unresolved merge conflict markers..."
+          if rg -n -e "^(<{7}|={7}|>{7})( .*)?$" . > /tmp/conflict-markers.txt; then
+            echo "[FAIL] Unresolved merge conflict markers found:"
+            cat /tmp/conflict-markers.txt
+            exit 1
+          fi
+
+          echo "Checking for common secret patterns..."
+          if rg -n -g "!**/*.md" -g "!**/examples/**" -e "-----BEGIN (RSA|EC|OPENSSH|DSA|PRIVATE KEY)-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|xox[baprs]-" . > /tmp/secret-patterns.txt; then
+            echo "[FAIL] Potential secrets detected in tracked files:"
+            cat /tmp/secret-patterns.txt
+            exit 1
+          fi
+
+          echo " Repository sanity checks passed"
+
   # ============================================
   # Go CLI - Lint, Build & Test
   # ============================================
