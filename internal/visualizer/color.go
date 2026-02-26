@@ -77,6 +77,14 @@ func ContractBoundary(fromContract, toContract string) string {
 	return sgrMagenta + sgrBold + line + sgrReset
 }
 
+// ContractBoundary returns a visual separator for cross-contract call transitions.
+func ContractBoundary(fromContract, toContract string) string {
+	if ColorEnabled() {
+		return sgrMagenta + sgrBold + "--- contract boundary: " + fromContract + " -> " + toContract + " ---" + sgrReset
+	}
+	return "--- contract boundary: " + fromContract + " -> " + toContract + " ---"
+}
+
 // Success returns a success indicator.
 func Success() string {
 	if !ColorEnabled() {

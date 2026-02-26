@@ -5,6 +5,7 @@
 
 mod config;
 mod gas_optimizer;
+mod git_detector;
 mod runner;
 mod source_map_cache;
 mod source_mapper;
@@ -12,6 +13,8 @@ mod stack_trace;
 mod types;
 mod vm;
 mod wasm;
+mod wasm_types;
+mod snapshot;
 
 use crate::gas_optimizer::{BudgetMetrics, GasOptimizationAdvisor, CPU_LIMIT, MEMORY_LIMIT};
 use crate::source_mapper::SourceMapper;
@@ -154,6 +157,7 @@ fn check_memory_limit_or_panic(host: &Host, memory_limit: Option<u64>) {
 fn execute_operations(
     host: &Host,
     operations: &[Operation],
+    request: &SimulationRequest,
     memory_limit: Option<u64>,
     coverage: &mut CoverageTracker,
 ) -> Result<Vec<String>, HostError> {
@@ -164,6 +168,17 @@ fn execute_operations(
         match &op.body {
             OperationBody::InvokeHostFunction(invoke_op) => {
                 logs.push("Executing InvokeHostFunction...".to_string());
+                
+                // Check for signature verification mock
+                if let Some(mock_result) = check_signature_verification_mocks(&request, &invoke_op.host_function) {
+                    logs.push(format!("Mock signature verification: {:?}", mock_result));
+                    if !mock_result {
+                        return Err(soroban_env_host::HostError::from(
+                            (soroban_env_host::xdr::ScErrorType::Context, soroban_env_host::xdr::ScErrorCode::InvalidInput)
+                        ));
+                    }
+                }
+                
                 let val = host.invoke_function(invoke_op.host_function.clone())?;
                 logs.push(format!("Result: {val:?}"));
                 check_memory_limit_or_panic(host, memory_limit);
@@ -219,6 +234,30 @@ fn mocked_required_fee_stroops(
     }
 }
 
+fn check_signature_verification_mocks(
+    request: &SimulationRequest,
+    host_function: &soroban_env_host::xdr::HostFunction,
+) -> Option<bool> {
+    // Check if signature verification mocking is enabled
+    let mock_result = request.mock_signature_verification?;
+    
+    // Check if this is a signature verification host function
+    // Note: Current soroban-env-host version only has InvokeContract, CreateContract, and UploadContractWasm
+    // Signature verification functions may be handled at a different level or in newer versions
+    match host_function {
+        // For now, we'll mock signature verification based on function name patterns
+        _ => {
+            // Check if the function name contains signature verification related terms
+            let function_name = host_function.name();
+            if function_name.contains("Verify") || function_name.contains("Signature") || function_name.contains("Ed25519") {
+                Some(mock_result)
+            } else {
+                None
+            }
+        }
+    }
+}
+
 fn categorize_events(events: &soroban_env_host::events::Events) -> Vec<CategorizedEvent> {
     events
         .0
@@ -263,6 +302,7 @@ fn categorize_events(events: &soroban_env_host::events::Events) -> Vec<Categoriz
                     // failed_call=true means the call that emitted this event
                     // actually failed; so a successful call is the inverse.
                     in_successful_contract_call: !e.failed_call,
+                    wasm_instruction,
                 },
             }
         })
@@ -407,7 +447,7 @@ fn main() {
                 if let Err(e) = vm::enforce_soroban_compatibility(&wasm_bytes) {
                     return send_error(format!("Strict VM enforcement failed: {}", e));
                 }
-                let mapper = SourceMapper::new(wasm_bytes);
+                let mapper = SourceMapper::new_with_options(wasm_bytes, request.no_cache.unwrap_or(false));
                 if mapper.has_debug_symbols() {
                     eprintln!("Debug symbols found in WASM");
                     Some(mapper)
@@ -506,7 +546,7 @@ fn main() {
     // Wrap the operation execution in panic protection
     let mut coverage = CoverageTracker::default();
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        execute_operations(&host, operations, request.memory_limit, &mut coverage)
+        execute_operations(&host, operations, &request, request.memory_limit, &mut coverage)
     }));
 
     // Budget and Reporting
@@ -708,11 +748,12 @@ fn main() {
                 optimization_report,
                 budget_usage: Some(budget_usage),
                 stack_trace: None,
+                wasm_offset: None,
                 // If a WASM with debug symbols was provided, expose the first
                 // mappable source location so callers can correlate failures.
                 source_location: source_mapper
                     .as_ref()
-                    .and_then(|m| m.map_wasm_offset_to_source(0))
+                    .and_then(|m: &SourceMapper| m.map_wasm_offset_to_source(0))
                     .and_then(|loc| serde_json::to_string(&loc).ok()),
                 wasm_offset: None,
                 linear_memory_dump: None,
@@ -985,8 +1026,13 @@ pub fn decode_error(raw: &str) -> String {
             .to_string();
     }
 
-    if lower.contains("budget") || lower.contains("cpu limit") || lower.contains("mem limit") {
-        return "Resource limit exceeded — the transaction consumed more CPU instructions or memory than the protocol-21 budget allows.".to_string();
+    // Look for "Instruction: <opcode>" pattern in the data
+    if let Some(start) = data.find("Instruction: ") {
+        let instr_start = start + "Instruction: ".len();
+        let rest = &data[instr_start..];
+        // Find the end of the instruction (quote or end of string)
+        let end = rest.find('"').unwrap_or(rest.len());
+        return Some(rest[..end].to_string());
     }
 
     if lower.contains("missing") || lower.contains("not found") {
@@ -1003,3 +1049,235 @@ pub fn decode_error(raw: &str) -> String {
     // Fallback: return the raw message unchanged.
     raw.to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stack_trace::decode_error;
+
+    #[test]
+    fn test_decode_vm_traps() {
+        assert!(
+            decode_error("Error: Wasm Trap: out of bounds memory access")
+                .contains("VM Trap: Out of Bounds Access")
+        );
+        assert!(decode_error("Panic: unreachable").contains("VM Trap: Unreachable Instruction"));
+        assert!(decode_error("integer divide by zero").contains("VM Trap: Division by Zero"));
+        assert!(decode_error("stack overflow occurred").contains("VM Trap: Stack Overflow"));
+        assert_eq!(decode_error("normal error"), "normal error");
+    }
+
+    #[test]
+    fn test_extract_wasm_instruction() {
+        let topics = vec!["budget".to_string(), "tick".to_string()];
+        let data = "\"Instruction: i32.add\"".to_string();
+        let instr = extract_wasm_instruction(&topics, &data);
+        assert_eq!(instr, Some("i32.add".to_string()));
+
+        let data2 = "\"Instruction: call 12\"".to_string();
+        let instr2 = extract_wasm_instruction(&topics, &data2);
+        assert_eq!(instr2, Some("call 12".to_string()));
+
+        let topics_none = vec!["other".to_string()];
+        let instr3 = extract_wasm_instruction(&topics_none, &data);
+        assert_eq!(instr3, None);
+        let msg = decode_error("Error: Wasm Trap: out of bounds memory access");
+        assert!(msg.contains("VM Trap: Out of bounds memory access"));
+    }
+
+    #[test]
+    fn test_decode_unreachable() {
+        let msg = decode_error("wasm trap: unreachable");
+        assert!(msg.contains("VM Trap: Unreachable"));
+    }
+
+    #[test]
+    fn test_enforce_soroban_compatibility_rejects_floats() {
+        let wat = r#"
+            (module
+                (func (export "f") (result f32)
+                    f32.const 0.0
+                )
+            )
+        "#;
+
+        let wasm = wat::parse_str(wat).expect("failed to compile WAT");
+        let result = vm::enforce_soroban_compatibility(&wasm);
+        assert!(result.is_err());
+    }
+
+    // ── Protocol-21 host-trait correctness ─────────────────────────────────
+
+    /// `HostEvent.failed_call == true` means the call that emitted the event
+    /// *failed*.  `in_successful_contract_call` must therefore be the inverse.
+    /// This was silently backwards before the protocol-21 fix.
+    #[test]
+    fn test_in_successful_contract_call_is_negation_of_failed_call() {
+        use soroban_env_host::events::{Events, HostEvent};
+        use soroban_env_host::xdr::{
+            ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
+            VecM,
+        };
+
+        let make_event = |failed: bool| -> HostEvent {
+            HostEvent {
+                failed_call: failed,
+                event: ContractEvent {
+                    ext: ExtensionPoint::V0,
+                    contract_id: None,
+                    type_: ContractEventType::Diagnostic,
+                    body: ContractEventBody::V0(ContractEventV0 {
+                        topics: VecM::default(),
+                        data: soroban_env_host::xdr::ScVal::Void,
+                    }),
+                },
+            }
+        };
+
+        // failed_call = true  →  in_successful_contract_call must be false
+        let evs_failed = Events(vec![make_event(true)]);
+        let categorized = categorize_events(&evs_failed);
+        assert_eq!(categorized.len(), 1);
+        assert!(
+            !categorized[0].event.in_successful_contract_call,
+            "a failed call should NOT be marked as a successful contract call"
+        );
+
+        // failed_call = false  →  in_successful_contract_call must be true
+        let evs_ok = Events(vec![make_event(false)]);
+        let categorized = categorize_events(&evs_ok);
+        assert_eq!(categorized.len(), 1);
+        assert!(
+            categorized[0].event.in_successful_contract_call,
+            "a successful call MUST be marked as a successful contract call"
+        );
+    }
+
+    /// categorize_events must correctly map ContractEventType variants to their
+    /// lowercase string representations.
+    #[test]
+    fn test_categorize_events_type_labels() {
+        use soroban_env_host::events::{Events, HostEvent};
+        use soroban_env_host::xdr::{
+            ContractEvent, ContractEventBody, ContractEventType, ContractEventV0, ExtensionPoint,
+            VecM,
+        };
+
+        let make_typed_event = |t: ContractEventType| HostEvent {
+            failed_call: false,
+            event: ContractEvent {
+                ext: ExtensionPoint::V0,
+                contract_id: None,
+                type_: t,
+                body: ContractEventBody::V0(ContractEventV0 {
+                    topics: VecM::default(),
+                    data: soroban_env_host::xdr::ScVal::Void,
+                }),
+            },
+        };
+
+        let evs = Events(vec![
+            make_typed_event(ContractEventType::Contract),
+            make_typed_event(ContractEventType::System),
+            make_typed_event(ContractEventType::Diagnostic),
+        ]);
+
+        let cats = categorize_events(&evs);
+        assert_eq!(cats[0].category, "Contract");
+        assert_eq!(cats[1].category, "System");
+        assert_eq!(cats[2].category, "Diagnostic");
+
+        // DiagnosticEvent.event_type should be lowercase
+        assert_eq!(cats[0].event.event_type, "contract");
+        assert_eq!(cats[1].event.event_type, "system");
+        assert_eq!(cats[2].event.event_type, "diagnostic");
+    }
+
+    /// SourceMapper without debug symbols must return None for source locations,
+    /// and the `source_location` field stays absent in serialized JSON.
+    #[test]
+    fn test_source_mapper_no_symbols_gives_no_location() {
+        use crate::source_mapper::SourceMapper;
+
+        let wasm_bytes = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // WASM magic + version
+        let mapper = SourceMapper::new_with_options(wasm_bytes, false);
+        assert!(!mapper.has_debug_symbols());
+        assert!(
+            mapper.map_wasm_offset_to_source(0).is_none(),
+            "WASM without .debug_info should yield no source location"
+        );
+    }
+
+    #[test]
+    fn test_missing_ledger_entry_includes_key_id() {
+        let raw = "HostError: storage get failed LedgerKey(ContractData(hash=abc123, key=Symbol(\"balance\")))";
+        let msg = decode_error(raw);
+        assert!(
+            msg.contains("Key ID:"),
+            "expected Key ID in message, got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("LedgerKey(ContractData"),
+            "expected key content in message, got: {}",
+            msg
+        );
+        assert!(msg.contains("Missing ledger entry"));
+    }
+
+    #[test]
+    fn test_missing_ledger_entry_no_key_falls_back() {
+        let msg = decode_error("some missing entry error without key info");
+        assert_eq!(msg, "Missing ledger entry — the contract referenced a key that does not exist in the current ledger state.");
+    }
+
+    #[test]
+    fn test_missing_ledger_entry_contract_data_pattern() {
+        let raw = "error: not found ContractData(contract=GABC, key=Bytes(deadbeef))";
+        let msg = decode_error(raw);
+        assert!(msg.contains("Key ID:"));
+        assert!(msg.contains("ContractData("));
+    }
+
+    #[test]
+    fn test_extract_missing_key_id_ledger_key() {
+        let raw = "HostError LedgerKey(ContractData(abc))";
+        assert_eq!(
+            extract_missing_key_id(raw),
+            Some("LedgerKey(ContractData(abc))".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_missing_key_id_explicit_key_label() {
+        let raw = "error: not found, key = \"GABC123/balance\"";
+        assert_eq!(
+            extract_missing_key_id(raw),
+            Some("GABC123/balance".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_missing_key_id_none_when_absent() {
+        assert_eq!(extract_missing_key_id("generic error with no key"), None);
+    }
+
+    #[test]
+    fn test_generate_lcov_report_contains_function_hits() {
+        let mut coverage = CoverageTracker::default();
+        coverage
+            .invoked_functions
+            .insert("InvokeContract::\"transfer\"".to_string(), 3);
+        coverage
+            .invoked_functions
+            .insert("InvokeContract::\"init\"".to_string(), 1);
+
+        let report = generate_lcov_report(&coverage, "/tmp/contract.wasm");
+        assert!(report.contains("SF:/tmp/contract.wasm"));
+        assert!(report.contains("FNDA:3,InvokeContract::\"transfer\""));
+        assert!(report.contains("FNDA:1,InvokeContract::\"init\""));
+        assert!(report.contains("FNF:2"));
+        assert!(report.contains("FNH:2"));
+    }
+}
+

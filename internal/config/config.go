@@ -245,7 +245,8 @@ func LoadConfig() (*Config, error) {
 	return config, nil
 }
 
-// Load loads the configuration from environment variables and TOML files
+// Load loads the configuration from environment variables and TOML files.
+// The lifecycle follows three distinct phases: load, merge defaults, validate.
 func Load() (*Config, error) {
 	cfg := &Config{}
 	parsers := []Parser{EnvParser{}, fileParser{}}
@@ -257,6 +258,10 @@ func Load() (*Config, error) {
 
 	ConfigDefaultsAssigner{}.Apply(cfg)
 
+	// Phase 2: Merge defaults for any fields still unset.
+	cfg.MergeDefaults()
+
+	// Phase 3: Validate.
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
