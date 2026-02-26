@@ -128,6 +128,11 @@ func runDryRun(cmd *cobra.Command, args []string) error {
 		return errors.WrapRPCConnectionFailed(err)
 	}
 
+	// Warn if the fetched ledger entries exceed the Soroban network size limit.
+	// The network rejects transactions whose footprint exceeds 1 MiB, so there
+	// is no point invoking the simulator — the tx will never land on-chain.
+	simulator.WarnLedgerEntriesSizeToStderr(ledgerEntries)
+
 	runner, err := simulator.NewRunner("", false)
 	if err != nil {
 		return errors.WrapSimulatorNotFound(err.Error())
