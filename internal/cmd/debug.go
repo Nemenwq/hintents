@@ -58,6 +58,7 @@ var (
 	protocolVersionFlag uint32
 	mockBaseFeeFlag     uint32
 	mockGasPriceFlag    uint64
+	wasmOptimizeFlag    bool
 )
 
 // DebugCommand holds dependencies for the debug command

@@ -29,7 +29,7 @@ type SimulationRequest struct {
 
 	//New: restorePreamble for state restoration operations
 	RestorePreamble map[string]interface{} `json:"restore_preamble,omitempty"`
-	
+
 	AuthTraceOpts       *AuthTraceOptions      `json:"auth_trace_opts,omitempty"`
 	CustomAuthCfg       map[string]interface{} `json:"custom_auth_config,omitempty"`
 	ResourceCalibration *ResourceCalibration   `json:"resource_calibration,omitempty"`

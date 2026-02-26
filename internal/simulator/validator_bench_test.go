@@ -134,7 +134,3 @@ func BenchmarkValidateRequestWithCustomValidator(b *testing.B) {
 		_ = validator.ValidateRequest(req)
 	}
 }
-
-func uint32Ptr(v uint32) *uint32 {
-	return &v
-}

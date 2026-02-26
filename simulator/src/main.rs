@@ -255,61 +255,6 @@ fn main() {
         }
     };
 
-    // Handle restore_preamble if present
-    if let Some(ref preamble) = request.restore_preamble {
-        eprintln!("[restore_preamble] Received: {}", preamble);
-        // If restore_preamble contains ledger keys/values, inject into host storage
-        if let Some(obj) = preamble.as_object() {
-            if let Some(entries) = obj.get("ledger_entries") {
-                if let Some(map) = entries.as_object() {
-                    for (key_xdr, entry_xdr_val) in map {
-                        if let Some(entry_xdr) = entry_xdr_val.as_str() {
-                            // Decode Key
-                            let key = match base64::engine::general_purpose::STANDARD.decode(key_xdr) {
-                                Ok(b) => match soroban_env_host::xdr::LedgerKey::from_xdr(
-                                    b,
-                                    soroban_env_host::xdr::Limits::none(),
-                                ) {
-                                    Ok(k) => k,
-                                    Err(e) => {
-                                        eprintln!("[restore_preamble] Failed to parse LedgerKey XDR: {}", e);
-                                        continue;
-                                    }
-                                },
-                                Err(e) => {
-                                    eprintln!("[restore_preamble] Failed to decode LedgerKey Base64: {}", e);
-                                    continue;
-                                }
-                            };
-                            // Decode Entry
-                            let entry = match base64::engine::general_purpose::STANDARD.decode(entry_xdr) {
-                                Ok(b) => match soroban_env_host::xdr::LedgerEntry::from_xdr(
-                                    b,
-                                    soroban_env_host::xdr::Limits::none(),
-                                ) {
-                                    Ok(e) => e,
-                                    Err(e) => {
-                                        eprintln!("[restore_preamble] Failed to parse LedgerEntry XDR: {}", e);
-                                        continue;
-                                    }
-                                },
-                                Err(e) => {
-                                    eprintln!("[restore_preamble] Failed to decode LedgerEntry Base64: {}", e);
-                                    continue;
-                                }
-                            };
-                            // Inject into host storage
-                            match host.put_ledger_entry(key.clone(), entry.clone()) {
-                                Ok(_) => eprintln!("[restore_preamble] Injected Ledger Entry: Key={:?}", key),
-                                Err(e) => eprintln!("[restore_preamble] Failed to inject entry: {:?}", e),
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     // Decode Envelope XDR
     let envelope = match base64::engine::general_purpose::STANDARD.decode(&request.envelope_xdr) {
         Ok(bytes) => match soroban_env_host::xdr::TransactionEnvelope::from_xdr(
