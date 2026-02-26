@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/dotandev/hintents/internal/config"
+	"github.com/dotandev/hintents/internal/decenstorage"
 	"github.com/dotandev/hintents/internal/decoder"
 	"github.com/dotandev/hintents/internal/errors"
 	"github.com/dotandev/hintents/internal/logger"
@@ -55,6 +56,36 @@ var (
 	demoMode            bool
 	watchFlag           bool
 	watchTimeoutFlag    int
+	protocolVersionFlag  uint32
+	themeFlag            string
+	auditKeyFlag         string
+	publishIPFSFlag      bool
+	publishArweaveFlag   bool
+	ipfsNodeFlag         string
+	arweaveGatewayFlag   string
+	arweaveWalletFlag    string
+	protocolVersionFlag uint32
+	themeFlag           string
+	mockTimeFlag        int64
+	networkFlag        string
+	rpcURLFlag         string
+	rpcTokenFlag       string
+	tracingEnabled     bool
+	otlpExporterURL    string
+	generateTrace      bool
+	traceOutputFile    string
+	snapshotFlag       string
+	compareNetworkFlag string
+	verbose            bool
+	wasmPath           string
+	args               []string
+	noCacheFlag        bool
+	demoMode           bool
+	watchFlag          bool
+	watchTimeoutFlag   int
+	mockBaseFeeFlag    uint32
+	mockGasPriceFlag   uint64
+	themeFlag           string
 	mockTimeFlag        int64
 	protocolVersionFlag uint32
 	mockBaseFeeFlag     uint32
@@ -454,6 +485,7 @@ Local WASM Replay Mode:
 					LedgerEntries:   ledgerEntries,
 					Timestamp:       ts,
 					ProtocolVersion: nil,
+					Profile:         ProfileFlag,
 				}
 
 				// Apply protocol version override if specified
@@ -502,6 +534,7 @@ Local WASM Replay Mode:
 						ResultMetaXdr: resp.ResultMetaXdr,
 						LedgerEntries: entries,
 						Timestamp:     ts,
+						Profile:       ProfileFlag,
 					}
 					applySimulationFeeMocks(primaryReq)
 					primaryResult, primaryErr = runner.Run(ctx, primaryReq)
@@ -542,6 +575,7 @@ Local WASM Replay Mode:
 						ResultMetaXdr: compareResp.ResultMetaXdr,
 						LedgerEntries: entries,
 						Timestamp:     ts,
+						Profile:       ProfileFlag,
 					}
 					applySimulationFeeMocks(compareReq)
 					compareResult, compareErr = runner.Run(ctx, compareReq)
@@ -572,6 +606,17 @@ Local WASM Replay Mode:
 
 		if lastSimResp == nil {
 			return errors.WrapSimulationLogicError("no simulation results generated")
+		}
+
+		// Save flamegraph SVG with dark-mode CSS when profiling is enabled
+		if ProfileFlag && lastSimResp.Flamegraph != "" {
+			svgContent := visualizer.InjectDarkMode(lastSimResp.Flamegraph)
+			svgFilename := txHash + ".flamegraph.svg"
+			if err := os.WriteFile(svgFilename, []byte(svgContent), 0644); err != nil {
+				fmt.Printf("%s Failed to write flamegraph: %v\n", visualizer.Warning(), err)
+			} else {
+				fmt.Printf("%s Flamegraph saved: %s\n", visualizer.Success(), svgFilename)
+			}
 		}
 
 		// Analysis: Error Suggestions (Heuristic-based)
@@ -671,6 +716,57 @@ Local WASM Replay Mode:
 		SetCurrentSession(sessionData)
 		fmt.Printf("\nSession created: %s\n", sessionData.ID)
 		fmt.Printf("Run 'erst session save' to persist this session.\n")
+
+		// Publish signed audit trail to decentralised storage when requested.
+		if publishIPFSFlag || publishArweaveFlag {
+			if auditKeyFlag == "" {
+				return errors.WrapCliArgumentRequired("audit-key")
+			}
+			auditLog, auditErr := Generate(
+				txHash,
+				resp.EnvelopeXdr,
+				resp.ResultMetaXdr,
+				lastSimResp.Events,
+				lastSimResp.Logs,
+				auditKeyFlag,
+			)
+			if auditErr != nil {
+				return fmt.Errorf("failed to generate audit log: %w", auditErr)
+			}
+			auditBytes, auditErr := json.Marshal(auditLog)
+			if auditErr != nil {
+				return fmt.Errorf("failed to marshal audit log: %w", auditErr)
+			}
+
+			pub := decenstorage.New(decenstorage.PublishConfig{
+				IPFSNode:       ipfsNodeFlag,
+				ArweaveGateway: arweaveGatewayFlag,
+				ArweaveWallet:  arweaveWalletFlag,
+			})
+
+			fmt.Printf("\n=== Decentralised Storage ===\n")
+
+			if publishIPFSFlag {
+				result, ipfsErr := pub.PublishIPFS(ctx, auditBytes)
+				if ipfsErr != nil {
+					fmt.Printf("IPFS publish failed: %v\n", ipfsErr)
+				} else {
+					fmt.Printf("IPFS CID : %s\n", result.CID)
+					fmt.Printf("IPFS URL : %s\n", result.URL)
+				}
+			}
+
+			if publishArweaveFlag {
+				result, arErr := pub.PublishArweave(ctx, auditBytes)
+				if arErr != nil {
+					fmt.Printf("Arweave publish failed: %v\n", arErr)
+				} else {
+					fmt.Printf("Arweave TXID : %s\n", result.TXID)
+					fmt.Printf("Arweave URL  : %s\n", result.URL)
+				}
+			}
+		}
+
 		return nil
 	},
 }
@@ -1111,6 +1207,16 @@ func init() {
 	debugCmd.Flags().BoolVar(&demoMode, "demo", false, "Print sample output (no network) - for testing color detection")
 	debugCmd.Flags().BoolVar(&watchFlag, "watch", false, "Poll for transaction on-chain before debugging")
 	debugCmd.Flags().IntVar(&watchTimeoutFlag, "watch-timeout", 30, "Timeout in seconds for watch mode")
+	debugCmd.Flags().Uint32Var(&protocolVersionFlag, "protocol-version", 0, "Override protocol version for simulation (20, 21, 22, etc)")
+	debugCmd.Flags().StringVar(&themeFlag, "theme", "", "Color theme (default, deuteranopia, protanopia, tritanopia, high-contrast)")
+	debugCmd.Flags().StringVar(&auditKeyFlag, "audit-key", "", "Ed25519 private key (hex) used to sign the audit trail")
+	debugCmd.Flags().BoolVar(&publishIPFSFlag, "publish-ipfs", false, "Pin signed audit trail to IPFS after simulation (requires --audit-key)")
+	debugCmd.Flags().BoolVar(&publishArweaveFlag, "publish-arweave", false, "Upload signed audit trail to Arweave after simulation (requires --audit-key)")
+	debugCmd.Flags().StringVar(&ipfsNodeFlag, "ipfs-node", "", "Kubo-compatible IPFS HTTP RPC node URL (default: http://localhost:5001 or ERST_IPFS_NODE env)")
+	debugCmd.Flags().StringVar(&arweaveGatewayFlag, "arweave-gateway", "", "Arweave HTTP gateway URL (default: https://arweave.net or ERST_ARWEAVE_GATEWAY env)")
+	debugCmd.Flags().StringVar(&arweaveWalletFlag, "arweave-wallet", "", "Path to Arweave JWK wallet file for signing data transactions (or ERST_ARWEAVE_WALLET env)")
+	debugCmd.Flags().Int64Var(&mockTimeFlag, "mock-time", 0, "Fix the ledger timestamp for deterministic local simulation (Unix epoch seconds); 0 = disabled")
+	debugCmd.Flags().StringVar(&themeFlag, "theme", "", "Output theme (default, deuteranopia, protanopia, tritanopia, high-contrast)")
 	debugCmd.Flags().Int64Var(&mockTimeFlag, "mock-time", 0, "Override ledger timestamp (Unix epoch) for simulation")
 	debugCmd.Flags().Uint32Var(&protocolVersionFlag, "protocol-version", 0, "Override protocol version for simulation")
 	debugCmd.Flags().Uint32Var(&mockBaseFeeFlag, "mock-base-fee", 0, "Override base fee (stroops) for local fee sufficiency checks")
