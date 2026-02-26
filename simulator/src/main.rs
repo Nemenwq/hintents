@@ -404,7 +404,7 @@ fn main() {
                 if let Err(e) = vm::enforce_soroban_compatibility(&wasm_bytes) {
                     return send_error(format!("Strict VM enforcement failed: {}", e));
                 }
-                let mapper = SourceMapper::new(wasm_bytes);
+                let mapper = SourceMapper::new_with_options(wasm_bytes, request.no_cache.unwrap_or(false));
                 if mapper.has_debug_symbols() {
                     eprintln!("Debug symbols found in WASM");
                     Some(mapper)
@@ -1147,7 +1147,7 @@ mod tests {
         use crate::source_mapper::SourceMapper;
 
         let wasm_bytes = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // WASM magic + version
-        let mapper = SourceMapper::new(wasm_bytes);
+        let mapper = SourceMapper::new_with_options(wasm_bytes, false);
         assert!(!mapper.has_debug_symbols());
         assert!(
             mapper.map_wasm_offset_to_source(0).is_none(),

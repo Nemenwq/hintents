@@ -250,14 +250,14 @@ func runBothPasses(
 	go func() {
 		defer wg.Done()
 		req := buildSimRequest(txResp, ledgerEntries, &localWasmPath, cmpArgsFlag)
-		localResult, localErr = runner.Run(req)
+		localResult, localErr = runner.Run(ctx, req)
 	}()
 
 	// Pass B – on-chain (no --wasm flag, uses whatever is in the ledger)
 	go func() {
 		defer wg.Done()
 		req := buildSimRequest(txResp, ledgerEntries, nil, nil)
-		onChainResult, onChainErr = runner.Run(req)
+		onChainResult, onChainErr = runner.Run(ctx, req)
 	}()
 
 	wg.Wait()

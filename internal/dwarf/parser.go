@@ -283,7 +283,7 @@ func (r *bytesReader) ReadAt(p []byte, off int64) (n int, err error) {
 	if off >= int64(len(r.data)) {
 		return 0, io.EOF
 	}
-	n = copy(p, r.data[off:])
+	n = copy(p, r.data[int(off):])
 	return n, nil
 }
 

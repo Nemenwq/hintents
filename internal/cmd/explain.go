@@ -132,7 +132,7 @@ func explainFromNetwork(cmd *cobra.Command, txHash string) error {
 		return fmt.Errorf("failed to initialize simulator: %w", err)
 	}
 
-	simResp, err := runner.Run(&simulator.SimulationRequest{
+	simResp, err := runner.Run(cmd.Context(), &simulator.SimulationRequest{
 		EnvelopeXdr:   resp.EnvelopeXdr,
 		ResultMetaXdr: resp.ResultMetaXdr,
 		LedgerEntries: ledgerEntries,

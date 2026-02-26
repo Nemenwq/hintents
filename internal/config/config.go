@@ -132,11 +132,6 @@ func Load() (*Config, error) {
 		for i := range cfg.RpcUrls {
 			cfg.RpcUrls[i] = strings.TrimSpace(cfg.RpcUrls[i])
 		}
-	} else if urlsEnv := os.Getenv("STELLAR_RPC_URLS"); urlsEnv != "" {
-		cfg.RpcUrls = strings.Split(urlsEnv, ",")
-		for i := range cfg.RpcUrls {
-			cfg.RpcUrls[i] = strings.TrimSpace(cfg.RpcUrls[i])
-		}
 	}
 
 	if err := cfg.loadFromFile(); err != nil {
@@ -308,9 +303,15 @@ func (c *Config) String() string {
 }
 
 func getEnv(key, defaultValue string) string {
+	// Only allow environment variables that are explicitly namespaced with ERST_
+	if !strings.HasPrefix(key, "ERST_") {
+		return defaultValue
+	}
+
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
+
 	return defaultValue
 }
 
