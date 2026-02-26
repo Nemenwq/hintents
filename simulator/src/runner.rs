@@ -49,7 +49,7 @@ impl SimHost {
             inner: host,
             contract_id: None,
             fn_name: None,
-            memory_limit,
+            memory_limit: _memory_limit,
         }
     }
 

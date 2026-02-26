@@ -24,6 +24,7 @@ type SimulationRequestBuilder struct {
 	resultMetaXdr   string
 	ledgerEntries   map[string]string
 	restorePreamble map[string]interface{}
+	mockBaseFee     *uint32
 	errors          []string
 }
 
@@ -88,9 +89,15 @@ func (b *SimulationRequestBuilder) WithLedgerEntries(entries map[string]string) 
 	return b
 }
 
-// WithRestorePreamble sets optional restore preamble data used in restore simulations.
+// WithRestorePreamble sets restore preamble data for state restoration operations.
 func (b *SimulationRequestBuilder) WithRestorePreamble(preamble map[string]interface{}) *SimulationRequestBuilder {
 	b.restorePreamble = preamble
+	return b
+}
+
+// WithMockBaseFee sets a custom baseline inclusion fee (in stroops) used for local fee sufficiency checks.
+func (b *SimulationRequestBuilder) WithMockBaseFee(baseFee uint32) *SimulationRequestBuilder {
+	b.mockBaseFee = &baseFee
 	return b
 }
 
@@ -122,9 +129,13 @@ func (b *SimulationRequestBuilder) Build() (*SimulationRequest, error) {
 		req.LedgerEntries = b.ledgerEntries
 	}
 
-	// Only set restorePreamble if present
+	// Only set restore preamble if present
 	if b.restorePreamble != nil {
 		req.RestorePreamble = b.restorePreamble
+	}
+
+	if b.mockBaseFee != nil {
+		req.MockBaseFee = b.mockBaseFee
 	}
 
 	return req, nil
@@ -146,6 +157,7 @@ func (b *SimulationRequestBuilder) Reset() *SimulationRequestBuilder {
 	b.resultMetaXdr = ""
 	b.ledgerEntries = make(map[string]string)
 	b.restorePreamble = nil
+	b.mockBaseFee = nil
 	b.errors = make([]string, 0)
 	return b
 }

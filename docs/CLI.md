@@ -96,6 +96,21 @@ erst debug --network testnet <tx-hash>
 | :--- | :--- |
 | `<transaction-hash>` | The hash of the transaction to debug. |
 
+### Interrupt and Shutdown Behavior
+
+When `erst` receives `Ctrl+C` (`SIGINT`) or `SIGTERM` during polling or simulation:
+
+- Active command execution is canceled immediately.
+- Shutdown hooks run once in deterministic order.
+- RPC cache flush is attempted as best-effort.
+- Active `erst-sim` child process groups are terminated gracefully (`SIGTERM`), then force-killed (`SIGKILL`) if they do not exit within the grace timeout.
+- The CLI exits with code `130`.
+
+Repeated interrupt handling:
+
+- First interrupt starts graceful shutdown.
+- A second interrupt during shutdown forces immediate exit with code `130`.
+
 ---
 
 ## erst generate-test
@@ -143,3 +158,33 @@ erst generate-test --name my_regression_test <tx-hash>
 Generated tests are written to:
 - **Go tests**: `internal/simulator/regression_tests/regression_<name>_test.go`
 - **Rust tests**: `simulator/tests/regression/regression_<name>.rs`
+
+---
+
+## erst export
+
+Export debugging artifacts from the active in-memory session.
+
+### Usage
+
+```bash
+erst export --snapshot <path> [--include-memory]
+```
+
+### Examples
+
+```bash
+# Export ledger snapshot only
+erst export --snapshot state.json
+
+# Export ledger snapshot + Wasm linear memory dump (if simulator response includes one)
+erst export --snapshot state-with-memory.json --include-memory
+```
+
+### Decode memory from snapshot
+
+```bash
+erst export decode-memory --snapshot state-with-memory.json --offset 0 --length 256
+```
+
+The `decode-memory` utility prints a hex + ASCII view to help inspect segments of encoded linear memory.

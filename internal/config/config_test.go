@@ -274,6 +274,31 @@ func TestLoadFromEnvironment(t *testing.T) {
 	}
 }
 
+func TestGetEnv_RequiresErstPrefix(t *testing.T) {
+	// Ensure non-ERST env keys are ignored by getEnv
+	origStellar := os.Getenv("STELLAR_RPC_URL")
+	origErst := os.Getenv("ERST_RPC_URL")
+	defer func() {
+		os.Setenv("STELLAR_RPC_URL", origStellar)
+		os.Setenv("ERST_RPC_URL", origErst)
+	}()
+
+	os.Setenv("STELLAR_RPC_URL", "https://stellar.example.com")
+	os.Unsetenv("ERST_RPC_URL")
+
+	// getEnv should return the default when asked for non-ERST key
+	def := "https://default.example.com"
+	if got := getEnv("STELLAR_RPC_URL", def); got != def {
+		t.Errorf("expected getEnv to return default for non-ERST key, got %s", got)
+	}
+
+	// But should return value for ERST_ key
+	os.Setenv("ERST_RPC_URL", "https://erst.example.com")
+	if got := getEnv("ERST_RPC_URL", def); got != "https://erst.example.com" {
+		t.Errorf("expected getEnv to read ERST_ env var, got %s", got)
+	}
+}
+
 func TestLoadTOMLFile(t *testing.T) {
 	tmpdir := t.TempDir()
 	configPath := filepath.Join(tmpdir, "test.toml")
@@ -484,12 +509,9 @@ func TestLoad_RequestTimeoutInvalidEnvIgnored(t *testing.T) {
 
 	os.Setenv("ERST_REQUEST_TIMEOUT", "notanumber")
 
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cfg.RequestTimeout != 15 {
-		t.Errorf("expected default RequestTimeout=15 for invalid env value, got %d", cfg.RequestTimeout)
+	_, err := Load()
+	if err == nil {
+		t.Fatal("expected error for invalid ERST_REQUEST_TIMEOUT value")
 	}
 }
 
@@ -530,8 +552,60 @@ request_timeout = -5`
 	if err := cfg.parseTOML(content); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if cfg.RequestTimeout != 0 {
-		t.Errorf("expected RequestTimeout unchanged for negative value, got %d", cfg.RequestTimeout)
+	if cfg.RequestTimeout != -5 {
+		t.Errorf("expected RequestTimeout to parse raw value, got %d", cfg.RequestTimeout)
+	}
+}
+
+func TestValidators_MissingFields(t *testing.T) {
+	tests := []struct {
+		name      string
+		validator Validator
+		cfg       *Config
+		wantErr   bool
+	}{
+		{name: "missing rpc_url", validator: RequiredFieldsValidator{}, cfg: &Config{}, wantErr: true},
+		{name: "present rpc_url", validator: RequiredFieldsValidator{}, cfg: &Config{RpcUrl: "https://ok"}, wantErr: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.validator.Validate(tt.cfg)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("expected error=%v, got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestParseTOML_InvalidTypes(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "request_timeout invalid type", content: `request_timeout = "abc"`},
+		{name: "crash_reporting invalid type", content: `crash_reporting = "maybe"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			if err := cfg.parseTOML(tt.content); err == nil {
+				t.Fatal("expected parse error")
+			}
+		})
+	}
+}
+
+func TestRequestTimeout_OutOfBounds(t *testing.T) {
+	tests := []int{-1, 301}
+	for _, timeout := range tests {
+		t.Run("timeout", func(t *testing.T) {
+			cfg := NewConfig("https://test.com", NetworkTestnet).WithRequestTimeout(timeout)
+			if err := (RequestTimeoutValidator{}).Validate(cfg); err == nil {
+				t.Fatalf("expected out-of-bounds error for %d", timeout)
+			}
+		})
 	}
 }
 

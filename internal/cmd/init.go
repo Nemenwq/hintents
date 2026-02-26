@@ -282,6 +282,7 @@ func renderProjectGitignoreBlock() string {
 .erst/traces/
 *.trace.json
 *.flamegraph.svg
+*.flamegraph.html
 `
 }
 
@@ -304,5 +305,8 @@ func init() {
 	initCmd.Flags().StringVar(&initNetworkName, "network", "testnet", "Default network to write into erst.toml (public, testnet, futurenet, standalone)")
 	initCmd.Flags().StringVar(&initRPCURLFlag, "rpc-url", "", "RPC URL to write into erst.toml (skips wizard default for this value)")
 	initCmd.Flags().StringVar(&initNetworkPassphraseFlag, "network-passphrase", "", "Network passphrase to write into erst.toml (skips wizard default for this value)")
+
+	_ = initCmd.RegisterFlagCompletionFunc("network", completeInitNetworkFlag)
+
 	rootCmd.AddCommand(initCmd)
 }

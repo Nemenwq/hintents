@@ -67,6 +67,7 @@ var (
 	ErrMissingLedgerKey     = errors.New("missing ledger key in footprint")
 	ErrWasmInvalid          = errors.New("invalid WASM file")
 	ErrSpecNotFound         = errors.New("contract spec not found")
+	ErrShellExit            = errors.New("exit")
 )
 
 type LedgerNotFoundError struct {
@@ -316,6 +317,30 @@ const (
 	CodeUnknown          ErstErrorCode = "UNKNOWN"
 )
 
+// codeToSentinel maps each ErstErrorCode to its corresponding sentinel error
+// so that errors.Is(erstErr, sentinel) works reliably.
+var codeToSentinel = map[ErstErrorCode]error{
+	CodeRPCConnectionFailed:    ErrRPCConnectionFailed,
+	CodeRPCTimeout:             ErrRPCTimeout,
+	CodeRPCAllFailed:           ErrAllRPCFailed,
+	CodeRPCError:               ErrRPCError,
+	CodeRPCResponseTooLarge:    ErrRPCResponseTooLarge,
+	CodeRPCRequestTooLarge:     ErrRPCRequestTooLarge,
+	CodeRPCRateLimitExceeded:   ErrRateLimitExceeded,
+	CodeRPCMarshalFailed:       ErrMarshalFailed,
+	CodeRPCUnmarshalFailed:     ErrUnmarshalFailed,
+	CodeTransactionNotFound:    ErrTransactionNotFound,
+	CodeLedgerNotFound:         ErrLedgerNotFound,
+	CodeLedgerArchived:         ErrLedgerArchived,
+	CodeSimNotFound:            ErrSimulatorNotFound,
+	CodeSimCrash:               ErrSimCrash,
+	CodeSimExecFailed:          ErrSimulationFailed,
+	CodeSimMemoryLimitExceeded: ErrSimulationFailed,
+	CodeSimLogicError:          ErrSimulationLogicError,
+	CodeSimProtoUnsup:          ErrProtocolUnsupported,
+	CodeValidationFailed:       ErrValidationFailed,
+}
+
 // ErstError is the unified error type returned at all RPC and Simulator boundaries.
 // It carries a stable ErstErrorCode for programmatic handling and preserves the
 // original error string in OriginalError for backwards compatibility.
@@ -332,9 +357,20 @@ func (e *ErstError) Error() string {
 	return string(e.Code) + ": " + e.Message
 }
 
-// Unwrap allows errors.Is/As to traverse the chain if needed.
+// Is allows errors.Is to match an ErstError against its corresponding sentinel
+// error via the codeToSentinel mapping.
+func (e *ErstError) Is(target error) bool {
+	if sentinel, ok := codeToSentinel[e.Code]; ok {
+		return target == sentinel
+	}
+	return false
+}
+
+// Unwrap returns nil because Is() handles sentinel matching directly.
+// The previous implementation created a fresh errors.New() on every call,
+// which broke errors.Is chains.
 func (e *ErstError) Unwrap() error {
-	return errors.New(e.OriginalError)
+	return nil
 }
 
 // newErstError is the internal constructor.

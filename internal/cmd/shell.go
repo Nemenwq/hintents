@@ -124,7 +124,7 @@ func runShell(cmd *cobra.Command, args []string) error {
 
 		// Parse and execute command
 		if err := executeShellCommand(ctx, session, line); err != nil {
-			if err.Error() == "exit" {
+			if errors.Is(err, errors.ErrShellExit) {
 				break
 			}
 			fmt.Printf("Error: %v\n", err)
@@ -164,7 +164,7 @@ func executeShellCommand(ctx context.Context, session *shell.Session, line strin
 		return nil
 
 	case "exit", "quit":
-		return fmt.Errorf("exit")
+		return errors.ErrShellExit
 
 	case "invoke":
 		return handleInvoke(ctx, session, args)

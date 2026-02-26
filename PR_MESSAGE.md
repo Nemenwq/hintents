@@ -1,43 +1,22 @@
-## PR: Refactor RPC configuration parsing into modular validators
-
-Summary
-- Split the monolithic parsing/validation/default-assignment for the RPC configuration into distinct lifecycle phases: parse -> defaults -> validate.
-- Added a `RPCConfigValidator` interface with two implementations: `UrlsValidator` and `NumericValidator`.
-- Updated `RPCConfigParser.loadConfig` to apply defaults and run validators as separate steps.
-- Added unit tests covering missing fields, invalid types, and out-of-bounds numeric values.
-
-Files changed
-- src/config/rpc-config.ts — refactored parser to separate phases
-- src/config/validators.ts — new validator interface and implementations
-- src/config/__tests__/rpc-config-validators.spec.ts — new unit tests
-
-Why
-- Improves separation of concerns and makes validation logic pluggable and testable.
-
-Notes for reviewers
-- The validators live in `src/config/validators.ts` and are intentionally small, focused classes.
-- Tests expect clear error messages for invalid/missing inputs.
-
-Attachment (optional)
-- Add an image here to show proof (screenshots, logs, etc.):
-
-  [ATTACH IMAGE HERE]
-
-How to attach an image to the PR
-1. If you're creating a GitHub Pull Request: after pushing your branch, open the PR page and drag the image into the PR comment box — GitHub will upload it and insert the markdown link.
-2. Alternatively, commit the image to the repository (e.g., `docs/`) and reference it in the PR body using the file path.
-
-How to run tests locally
-1. Install dependencies:
-
-```bash
-npm ci
-```
-
-2. Run the test suite:
-
-```bash
-npm test
-```
-
 Note: In the codespace container I could not run tests because `jest` is not installed in the environment (command `jest: not found`). Running `npm ci` locally will install the dev dependencies and allow the test run.
+# PR Title
+Refactor config lifecycle into parse/default/validate phases
+
+## Summary
+- split configuration loading into lifecycle phases: parsing, default assignment, and validation
+- introduced interface-based validators so each validation rule is isolated
+- added unit tests for missing required fields, invalid types, and out-of-bounds timeout values
+
+## Validation
+- `go test ./internal/config -count=1`
+
+## Evidence Attachment
+![Attach proof screenshot here](ATTACHMENT_PATH_OR_URL)
+
+Replace `ATTACHMENT_PATH_OR_URL` with your uploaded image link.
+
+## How to add the attachment
+1. Create or collect your proof image (for example, a test run screenshot).
+2. In GitHub PR description, drag and drop the image into the text editor.
+3. GitHub will upload it and insert a markdown image URL.
+4. Copy that URL and replace `ATTACHMENT_PATH_OR_URL` above.
