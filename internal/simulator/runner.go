@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"fmt"
 	"os"
 	"os/exec"
@@ -244,7 +245,10 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	prepareCommand(cmd)
 	cmd.Stdin = bytes.NewReader(inputBytes)
 
-	var stdout, stderr bytes.Buffer
+	// Use limited-size buffers to prevent memory growth in daemon mode
+	// Set reasonable limits (10MB stdout, 1MB stderr) for typical simulation responses
+	stdout := limitedBuffer{Buffer: bytes.Buffer{}, limit: 10 * 1024 * 1024}
+	stderr := limitedBuffer{Buffer: bytes.Buffer{}, limit: 1 * 1024 * 1024}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 
@@ -301,6 +305,18 @@ func (r *Runner) Run(ctx context.Context, req *SimulationRequest) (*SimulationRe
 	return &resp, nil
 }
 
+// limitedBuffer wraps bytes.Buffer with a size limit to prevent memory leaks
+type limitedBuffer struct {
+	bytes.Buffer
+	limit int
+}
+
+func (lb *limitedBuffer) Write(p []byte) (n int, err error) {
+	if lb.Len()+len(p) > lb.limit {
+		// Buffer would exceed limit, discard the data
+		return len(p), nil
+	}
+	return lb.Buffer.Write(p)
 func (r *Runner) Close() error {
 	r.mu.Lock()
 	if r.closed {
