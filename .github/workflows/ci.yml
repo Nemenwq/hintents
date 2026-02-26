@@ -166,16 +166,6 @@ jobs:
           toolchain: ${{ matrix.rust-version }}
           components: rustfmt, clippy
 
-      - name: Install sccache
-        uses: mozilla-actions/sccache-action@v0.0.6
-
-      - name: Configure sccache
-        run: |
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
-          # Keep sccache enabled, but avoid hard failures when the Actions
-          # Artifact Cache service has an outage.
-          echo "SCCACHE_GHA_ENABLED=false" >> $GITHUB_ENV
-
       - name: Cache Cargo dependencies and build artifacts
         uses: Swatinem/rust-cache@v2
         with:
@@ -220,6 +210,3 @@ jobs:
 
       - name: Build
         run: cargo build --verbose
-
-      - name: Print sccache stats
-        run: sccache --show-stats
