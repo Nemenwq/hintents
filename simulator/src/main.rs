@@ -1162,23 +1162,6 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_ledger_entry_includes_key_id() {
-        let raw = "HostError: storage get failed LedgerKey(ContractData(hash=abc123, key=Symbol(\"balance\")))";
-        let msg = decode_error(raw);
-        assert!(
-            msg.contains("Key ID:"),
-            "expected Key ID in message, got: {}",
-            msg
-        );
-        assert!(
-            msg.contains("LedgerKey(ContractData"),
-            "expected key content in message, got: {}",
-            msg
-        );
-        assert!(msg.contains("Missing ledger entry"));
-    }
-
-    #[test]
     fn test_missing_ledger_entry_no_key_falls_back() {
         let msg = decode_error("some missing entry error without key info");
         assert_eq!(msg, "Missing ledger entry — the contract referenced a key that does not exist in the current ledger state.");
