@@ -5,6 +5,7 @@
 
 mod config;
 mod gas_optimizer;
+mod git_detector;
 mod runner;
 mod source_map_cache;
 mod source_mapper;
@@ -1256,3 +1257,4 @@ mod tests {
         assert!(report.contains("FNH:2"));
     }
 }
+>>>>>>> ac2f0a127a0ae2292443728a70f9e09fa77f8835

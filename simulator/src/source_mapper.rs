@@ -1,6 +1,7 @@
 // Copyright 2025 Erst Users
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::git_detector::GitRepository;
 use gimli::{self, ColumnType, Dwarf, EndianSlice, Reader, RunTimeEndian, SectionId};
 use object::{Object, ObjectSection};
 use serde::{Deserialize, Serialize};
@@ -10,8 +11,7 @@ use std::path::PathBuf;
 pub struct SourceMapper {
     has_symbols: bool,
     line_cache: Vec<CachedLineEntry>,
-    #[allow(dead_code)]
-    wasm_hash: String,
+    git_repo: Option<GitRepository>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +20,8 @@ pub struct SourceLocation {
     pub line: u32,
     pub column: Option<u32>,
     pub column_end: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub github_link: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +44,8 @@ impl SourceMapper {
             eprintln!("--no-cache: skipping cache, re-parsing WASM symbols from scratch.");
         }
         let has_symbols = Self::check_debug_symbols(&wasm_bytes);
+        let git_repo = Self::detect_git_repository();
+        
         let line_cache = if has_symbols {
             Self::build_line_cache(&wasm_bytes).unwrap_or_default()
         } else {
@@ -51,7 +55,7 @@ impl SourceMapper {
         Self {
             has_symbols,
             line_cache,
-            wasm_hash,
+            git_repo,
         }
     }
 
@@ -59,6 +63,11 @@ impl SourceMapper {
     #[allow(dead_code)]
     pub fn new_with_cache(wasm_bytes: Vec<u8>, _cache_dir: PathBuf) -> Self {
         Self::new(wasm_bytes)
+    }
+
+    fn detect_git_repository() -> Option<GitRepository> {
+        let current_dir = std::env::current_dir().ok()?;
+        GitRepository::detect(&current_dir)
     }
 
     fn check_debug_symbols(wasm_bytes: &[u8]) -> bool {
@@ -165,6 +174,7 @@ impl SourceMapper {
                         line: line.get() as u32,
                         column,
                         column_end: None,
+                        github_link: None,
                     };
 
                     if let Some((start, prev_location)) = pending.replace((row.address(), location))
@@ -241,7 +251,28 @@ impl SourceMapper {
             }
         }
 
-        Some(entry.location.clone())
+        let mut location = entry.location.clone();
+        
+        // Add GitHub link if available
+        if let Some(ref git_repo) = self.git_repo {
+            location.github_link = git_repo.generate_file_link(&location.file, location.line);
+        }
+
+        Some(location)
+    }
+
+    pub fn create_source_location(&self, file: String, line: u32, column: Option<u32>) -> SourceLocation {
+        let github_link = self.git_repo
+            .as_ref()
+            .and_then(|repo| repo.generate_file_link(&file, line));
+
+        SourceLocation {
+            file,
+            line,
+            column,
+            column_end: None,
+            github_link,
+        }
     }
 
     pub fn has_debug_symbols(&self) -> bool {
@@ -259,7 +290,7 @@ mod tests {
         SourceMapper {
             has_symbols: true,
             line_cache: entries,
-            wasm_hash: "test_hash".to_string(),
+            git_repo: None,
         }
     }
 
@@ -293,6 +324,7 @@ mod tests {
                     line: 10,
                     column: Some(1),
                     column_end: None,
+                    github_link: None,
                 },
             },
             CachedLineEntry {
@@ -303,6 +335,7 @@ mod tests {
                     line: 20,
                     column: Some(2),
                     column_end: None,
+                    github_link: None,
                 },
             },
         ]);
@@ -325,6 +358,7 @@ mod tests {
                 line: 7,
                 column: None,
                 column_end: None,
+                github_link: None,
             },
         }]);
 
@@ -338,11 +372,28 @@ mod tests {
             line: 42,
             column: Some(10),
             column_end: Some(15),
+            github_link: None,
         };
 
         let json = serde_json::to_string(&location).unwrap();
         assert!(json.contains("test.rs"));
         assert!(json.contains("42"));
+    }
+
+    #[test]
+    fn test_source_location_with_github_link() {
+        let location = SourceLocation {
+            file: "test.rs".to_string(),
+            line: 42,
+            column: Some(10),
+            column_end: None,
+            github_link: Some("https://github.com/user/repo/blob/abc123/test.rs#L42".to_string()),
+        };
+
+        let json = serde_json::to_string(&location).unwrap();
+        assert!(json.contains("test.rs"));
+        assert!(json.contains("42"));
+        assert!(json.contains("github.com"));
     }
 
     #[test]
@@ -371,6 +422,7 @@ mod tests {
                 line: 42,
                 column: Some(10),
                 column_end: None,
+                github_link: None,
             },
         );
 
