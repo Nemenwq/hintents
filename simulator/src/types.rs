@@ -33,6 +33,8 @@ pub struct SimulationRequest {
     pub memory_limit: Option<u64>,
     #[serde(default)]
     pub restore_preamble: Option<serde_json::Value>,
+    #[serde(default)]
+    pub include_linear_memory: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -66,6 +68,8 @@ pub struct SimulationResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stack_trace: Option<WasmStackTrace>,
     pub wasm_offset: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub linear_memory_dump: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

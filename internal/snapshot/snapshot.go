@@ -18,13 +18,12 @@ type LedgerEntryTuple []string
 // Snapshot represents the structure of a soroban-cli compatible snapshot file.
 // strict schema compatibility: "ledgerEntries" key containing list of tuples.
 type Snapshot struct {
-	LedgerEntries      []LedgerEntryTuple `json:"ledgerEntries"`
-	LinearMemoryBase64 string             `json:"linearMemoryBase64,omitempty"`
-	LinearMemorySize   int                `json:"linearMemorySize,omitempty"`
+	LedgerEntries []LedgerEntryTuple `json:"ledgerEntries"`
+	LinearMemory  string             `json:"linearMemory,omitempty"`
 }
 
 type BuildOptions struct {
-	LinearMemoryBase64 string
+	LinearMemory []byte
 }
 
 // FromMap converts the internal map representation to a Snapshot.
@@ -35,7 +34,7 @@ func FromMap(m map[string]string) *Snapshot {
 
 func FromMapWithOptions(m map[string]string, opts BuildOptions) *Snapshot {
 	if m == nil {
-		return &Snapshot{LedgerEntries: make([]LedgerEntryTuple, 0), LinearMemoryBase64: opts.LinearMemoryBase64}
+		return &Snapshot{LedgerEntries: make([]LedgerEntryTuple, 0), LinearMemory: encodeMemory(opts.LinearMemory)}
 	}
 
 	entries := make([]LedgerEntryTuple, 0, len(m))
@@ -48,7 +47,7 @@ func FromMapWithOptions(m map[string]string, opts BuildOptions) *Snapshot {
 		return entries[i][0] < entries[j][0]
 	})
 
-	return &Snapshot{LedgerEntries: entries, LinearMemoryBase64: opts.LinearMemoryBase64}
+	return &Snapshot{LedgerEntries: entries, LinearMemory: encodeMemory(opts.LinearMemory)}
 }
 
 // ToMap converts the Snapshot back to the internal map representation.
@@ -63,6 +62,18 @@ func (s *Snapshot) ToMap() map[string]string {
 		}
 	}
 	return m
+}
+
+func (s *Snapshot) DecodeLinearMemory() ([]byte, error) {
+	if s == nil || s.LinearMemory == "" {
+		return nil, nil
+	}
+
+	decoded, err := base64.StdEncoding.DecodeString(s.LinearMemory)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode linear memory: %w", err)
+	}
+	return decoded, nil
 }
 
 // Load reads a snapshot from a JSON file.
@@ -119,27 +130,12 @@ func normalizedForSave(snap *Snapshot) *Snapshot {
 		return left < right
 	})
 
-	normalized := &Snapshot{
-		LedgerEntries:      entries,
-		LinearMemoryBase64: snap.LinearMemoryBase64,
-	}
-
-	if decoded, err := normalized.DecodeLinearMemory(); err == nil && len(decoded) > 0 {
-		normalized.LinearMemorySize = len(decoded)
-	}
-
-	return normalized
+	return &Snapshot{LedgerEntries: entries, LinearMemory: snap.LinearMemory}
 }
 
-func (s *Snapshot) DecodeLinearMemory() ([]byte, error) {
-	if s == nil || s.LinearMemoryBase64 == "" {
-		return nil, nil
+func encodeMemory(memory []byte) string {
+	if len(memory) == 0 {
+		return ""
 	}
-
-	b, err := base64.StdEncoding.DecodeString(s.LinearMemoryBase64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode linear memory: %w", err)
-	}
-
-	return b, nil
+	return base64.StdEncoding.EncodeToString(memory)
 }
