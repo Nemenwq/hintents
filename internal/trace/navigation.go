@@ -25,7 +25,6 @@ type ExecutionState struct {
 	HostState       map[string]interface{} `json:"host_state,omitempty"`
 	Memory          map[string]interface{} `json:"memory,omitempty"`
 	WasmInstruction string                 `json:"wasm_instruction,omitempty"`
-
 }
 
 // DefaultSnapshotInterval is the number of steps between state snapshots.

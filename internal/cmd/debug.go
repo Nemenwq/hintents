@@ -85,11 +85,11 @@ var (
 	watchTimeoutFlag   int
 	mockBaseFeeFlag    uint32
 	mockGasPriceFlag   uint64
-	themeFlag           string
-	mockTimeFlag        int64
+	asyncFlag          bool
+	asyncTimeoutFlag   int
+	mockTimeFlag       int64
 	protocolVersionFlag uint32
-	mockBaseFeeFlag     uint32
-	mockGasPriceFlag    uint64
+	themeFlag          string
 )
 
 // DebugCommand holds dependencies for the debug command
@@ -500,7 +500,11 @@ Local WASM Replay Mode:
 				}
 				applySimulationFeeMocks(simReq)
 
-				simResp, err = runner.Run(ctx, simReq)
+				if asyncFlag {
+					simResp, err = runAsyncSimulation(ctx, runner, simReq)
+				} else {
+					simResp, err = runner.Run(simReq)
+				}
 				if err != nil {
 					return errors.WrapSimulationFailed(err, "")
 				}
@@ -1207,6 +1211,50 @@ func findDeprecatedHostFunction(input string) (string, bool) {
 	return "", false
 }
 
+func runAsyncSimulation(ctx context.Context, runner simulator.RunnerInterface, req *simulator.SimulationRequest) (*simulator.SimulationResponse, error) {
+	async := simulator.NewAsyncRunner(runner)
+
+	spinner := watch.NewSpinner()
+	spinner.Start("Submitting simulation job...")
+
+	jobID, err := async.Submit(req)
+	if err != nil {
+		spinner.StopWithError("Failed to submit simulation")
+		return nil, fmt.Errorf("async submit failed: %w", err)
+	}
+
+	spinner.StopWithMessage(fmt.Sprintf("Job submitted: %s", jobID))
+
+	pollSpinner := watch.NewSpinner()
+	pollSpinner.Start("Polling for simulation result...")
+
+	cfg := simulator.PollConfig{
+		Interval: 500 * time.Millisecond,
+		Timeout:  time.Duration(asyncTimeoutFlag) * time.Second,
+	}
+
+	job, err := async.Wait(ctx, jobID, cfg)
+	if err != nil {
+		pollSpinner.StopWithError("Simulation timed out or was cancelled")
+		return nil, fmt.Errorf("async poll failed: %w", err)
+	}
+
+	defer async.Cleanup(jobID)
+
+	if job.Status == simulator.JobStatusFailed {
+		pollSpinner.StopWithError("Simulation failed")
+		return nil, fmt.Errorf("simulation error: %s", job.Error)
+	}
+
+	elapsed := ""
+	if job.CompletedAt != nil {
+		elapsed = fmt.Sprintf(" (%.1fs)", job.CompletedAt.Sub(job.SubmittedAt).Seconds())
+	}
+	pollSpinner.StopWithMessage(fmt.Sprintf("Simulation completed%s", elapsed))
+
+	return job.Response, nil
+}
+
 func init() {
 	debugCmd.Flags().StringVarP(&networkFlag, "network", "n", "mainnet", "Stellar network (auto-detected when omitted; testnet, mainnet, futurenet)")
 	debugCmd.Flags().StringVar(&rpcURLFlag, "rpc-url", "", "Custom RPC URL")
@@ -1240,6 +1288,8 @@ func init() {
 	debugCmd.Flags().Uint32Var(&protocolVersionFlag, "protocol-version", 0, "Override protocol version for simulation")
 	debugCmd.Flags().Uint32Var(&mockBaseFeeFlag, "mock-base-fee", 0, "Override base fee (stroops) for local fee sufficiency checks")
 	debugCmd.Flags().Uint64Var(&mockGasPriceFlag, "mock-gas-price", 0, "Override gas price multiplier for local fee sufficiency checks")
+	debugCmd.Flags().BoolVar(&asyncFlag, "async", false, "Submit simulation in background and poll for result (avoids timeouts on heavy traces)")
+	debugCmd.Flags().IntVar(&asyncTimeoutFlag, "async-timeout", 300, "Timeout in seconds for async simulation polling")
 
 	_ = debugCmd.RegisterFlagCompletionFunc("network", completeNetworkFlag)
 	_ = debugCmd.RegisterFlagCompletionFunc("compare-network", completeNetworkFlag)
