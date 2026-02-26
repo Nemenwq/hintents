@@ -4,6 +4,7 @@
 package snapshot
 
 import (
+	"encoding/base64"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,5 +76,43 @@ func TestSaveNilSnapshot(t *testing.T) {
 	}
 	if strings.TrimSpace(string(data)) == "" {
 		t.Fatal("expected non-empty JSON for nil snapshot")
+	}
+}
+
+func TestFromMapWithOptions_LinearMemory(t *testing.T) {
+	memory := []byte("hello-memory")
+	encoded := base64.StdEncoding.EncodeToString(memory)
+
+	snap := FromMapWithOptions(map[string]string{"a": "b"}, BuildOptions{LinearMemoryBase64: encoded})
+	if snap.LinearMemoryBase64 != encoded {
+		t.Fatalf("expected encoded memory to be preserved")
+	}
+
+	decoded, err := snap.DecodeLinearMemory()
+	if err != nil {
+		t.Fatalf("DecodeLinearMemory returned error: %v", err)
+	}
+	if string(decoded) != string(memory) {
+		t.Fatalf("unexpected decoded memory: %q", string(decoded))
+	}
+}
+
+func TestSave_StoresLinearMemorySize(t *testing.T) {
+	memory := []byte{0x01, 0x02, 0x03, 0x04}
+	encoded := base64.StdEncoding.EncodeToString(memory)
+	snap := &Snapshot{LedgerEntries: []LedgerEntryTuple{}, LinearMemoryBase64: encoded}
+
+	outPath := filepath.Join(t.TempDir(), "snapshot-memory.json")
+	if err := Save(outPath, snap); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	raw, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("failed reading snapshot: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `"linearMemorySize": 4`) {
+		t.Fatalf("expected linearMemorySize in saved snapshot, got: %s", text)
 	}
 }

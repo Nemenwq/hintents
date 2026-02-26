@@ -4,6 +4,7 @@
 package snapshot
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,14 +18,24 @@ type LedgerEntryTuple []string
 // Snapshot represents the structure of a soroban-cli compatible snapshot file.
 // strict schema compatibility: "ledgerEntries" key containing list of tuples.
 type Snapshot struct {
-	LedgerEntries []LedgerEntryTuple `json:"ledgerEntries"`
+	LedgerEntries      []LedgerEntryTuple `json:"ledgerEntries"`
+	LinearMemoryBase64 string             `json:"linearMemoryBase64,omitempty"`
+	LinearMemorySize   int                `json:"linearMemorySize,omitempty"`
+}
+
+type BuildOptions struct {
+	LinearMemoryBase64 string
 }
 
 // FromMap converts the internal map representation to a Snapshot.
 // Enforces deterministic ordering by sorting keys.
 func FromMap(m map[string]string) *Snapshot {
+	return FromMapWithOptions(m, BuildOptions{})
+}
+
+func FromMapWithOptions(m map[string]string, opts BuildOptions) *Snapshot {
 	if m == nil {
-		return &Snapshot{LedgerEntries: make([]LedgerEntryTuple, 0)}
+		return &Snapshot{LedgerEntries: make([]LedgerEntryTuple, 0), LinearMemoryBase64: opts.LinearMemoryBase64}
 	}
 
 	entries := make([]LedgerEntryTuple, 0, len(m))
@@ -37,7 +48,7 @@ func FromMap(m map[string]string) *Snapshot {
 		return entries[i][0] < entries[j][0]
 	})
 
-	return &Snapshot{LedgerEntries: entries}
+	return &Snapshot{LedgerEntries: entries, LinearMemoryBase64: opts.LinearMemoryBase64}
 }
 
 // ToMap converts the Snapshot back to the internal map representation.
@@ -108,5 +119,27 @@ func normalizedForSave(snap *Snapshot) *Snapshot {
 		return left < right
 	})
 
-	return &Snapshot{LedgerEntries: entries}
+	normalized := &Snapshot{
+		LedgerEntries:      entries,
+		LinearMemoryBase64: snap.LinearMemoryBase64,
+	}
+
+	if decoded, err := normalized.DecodeLinearMemory(); err == nil && len(decoded) > 0 {
+		normalized.LinearMemorySize = len(decoded)
+	}
+
+	return normalized
+}
+
+func (s *Snapshot) DecodeLinearMemory() ([]byte, error) {
+	if s == nil || s.LinearMemoryBase64 == "" {
+		return nil, nil
+	}
+
+	b, err := base64.StdEncoding.DecodeString(s.LinearMemoryBase64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode linear memory: %w", err)
+	}
+
+	return b, nil
 }

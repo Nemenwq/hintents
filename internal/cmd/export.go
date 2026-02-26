@@ -14,6 +14,7 @@ import (
 )
 
 var exportSnapshotFlag string
+var exportIncludeMemoryFlag bool
 
 var exportCmd = &cobra.Command{
 	Use:     "export",
@@ -42,7 +43,19 @@ var exportCmd = &cobra.Command{
 		}
 
 		// Convert to snapshot
-		snap := snapshot.FromMap(simReq.LedgerEntries)
+		snapOptions := snapshot.BuildOptions{}
+		if exportIncludeMemoryFlag {
+			memoryB64, err := extractLinearMemoryBase64(data.SimResponseJSON)
+			if err != nil {
+				return errors.WrapValidationError(fmt.Sprintf("failed to parse simulation response: %v", err))
+			}
+			snapOptions.LinearMemoryBase64 = memoryB64
+			if memoryB64 == "" {
+				fmt.Println("Warning: No linear memory dump found in simulation response.")
+			}
+		}
+
+		snap := snapshot.FromMapWithOptions(simReq.LedgerEntries, snapOptions)
 
 		// Save
 		if err := snapshot.Save(exportSnapshotFlag, snap); err != nil {
@@ -56,5 +69,27 @@ var exportCmd = &cobra.Command{
 
 func init() {
 	exportCmd.Flags().StringVar(&exportSnapshotFlag, "snapshot", "", "Output file for JSON snapshot")
+	exportCmd.Flags().BoolVar(&exportIncludeMemoryFlag, "include-memory", false, "Include Wasm linear memory dump in snapshot when available")
 	rootCmd.AddCommand(exportCmd)
+}
+
+func extractLinearMemoryBase64(simResponseJSON string) (string, error) {
+	if simResponseJSON == "" {
+		return "", nil
+	}
+
+	var payload struct {
+		LinearMemoryBase64 string `json:"linear_memory_base64"`
+		LinearMemory       string `json:"linear_memory"`
+	}
+
+	if err := json.Unmarshal([]byte(simResponseJSON), &payload); err != nil {
+		return "", err
+	}
+
+	if payload.LinearMemoryBase64 != "" {
+		return payload.LinearMemoryBase64, nil
+	}
+
+	return payload.LinearMemory, nil
 }
