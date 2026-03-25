@@ -114,7 +114,7 @@ func TestNewRegressionHarness(t *testing.T) {
 	})
 }
 
-func TestRegressionHarness_RunRegressionTests(t *testing.T) {
+func TestRegressionHarnessRunRegressionTests(t *testing.T) {
 	t.Run("validates count parameter", func(t *testing.T) {
 		mockRPC := &mockRPCProvider{}
 		harness := NewRegressionHarness(&MockRunner{}, mockRPC, 2)
@@ -139,7 +139,7 @@ func TestRegressionHarness_RunRegressionTests(t *testing.T) {
 	})
 }
 
-func TestRegressionHarness_TestTransaction(t *testing.T) {
+func TestRegressionHarnessTestTransaction(t *testing.T) {
 	t.Run("returns error when RPCProvider is nil", func(t *testing.T) {
 		mockRunner := &MockRunner{
 			RunFunc: func(ctx context.Context, req *SimulationRequest) (*SimulationResponse, error) {

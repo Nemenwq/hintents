@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRunnerInterface_CompileTimeCheck(t *testing.T) {
+func TestRunnerInterfaceCompileTimeCheck(t *testing.T) {
 	// Verify Runner implements RunnerInterface at compile time
 	var _ RunnerInterface = (*Runner)(nil)
 
@@ -20,7 +20,7 @@ func TestRunnerInterface_CompileTimeCheck(t *testing.T) {
 	assert.True(t, true, "Runner implements RunnerInterface")
 }
 
-func TestRPCProvider_CompileTimeCheck(t *testing.T) {
+func TestRPCProviderCompileTimeCheck(t *testing.T) {
 	// Verify RPCClientAdapter implements RPCProvider at compile time
 	var _ RPCProvider = (*RPCClientAdapter)(nil)
 
