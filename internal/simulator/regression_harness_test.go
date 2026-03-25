@@ -7,8 +7,30 @@ import (
 	"context"
 	"testing"
 
+	"github.com/dotandev/hintents/internal/rpc"
 	"github.com/stretchr/testify/assert"
 )
+
+// Mock RPC provider for testing
+type mockRPCProvider struct{}
+
+func (m *mockRPCProvider) GetTransaction(ctx context.Context, hash string) (*rpc.TransactionResponse, error) {
+	// Return mock transaction data
+	return &rpc.TransactionResponse{
+		EnvelopeXdr:   "mock-envelope-xdr",
+		ResultXdr:     "mock-result-xdr",
+		ResultMetaXdr: "mock-result-meta-xdr",
+	}, nil
+}
+
+func (m *mockRPCProvider) GetLedgerEntries(ctx context.Context, keys []string) (map[string]string, error) {
+	// Return mock ledger entries
+	entries := make(map[string]string)
+	for _, key := range keys {
+		entries[key] = "mock-ledger-entry-xdr"
+	}
+	return entries, nil
+}
 
 func TestRegressionTestResult(t *testing.T) {
 	t.Run("creates result with required fields", func(t *testing.T) {
@@ -172,7 +194,7 @@ func TestExtractLedgerKeysFromXDR(t *testing.T) {
 	})
 }
 
-func TestRegressionTestSuite_ConcurrentAddition(t *testing.T) {
+func TestRegressionTestSuiteConcurrentAddition(t *testing.T) {
 	suite := &RegressionTestSuite{
 		TotalTests: 100,
 		Results:    make([]RegressionTestResult, 0, 100),
