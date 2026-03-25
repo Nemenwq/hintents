@@ -81,7 +81,8 @@ func runRegressionTest(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create regression harness
-	harness := simulator.NewRegressionHarness(runner, client, regressionMaxWorkers)
+	rpcProvider := simulator.NewRPCClientAdapter(client)
+	harness := simulator.NewRegressionHarness(runner, rpcProvider, regressionMaxWorkers)
 	harness.Verbose = verbose
 
 	// Run the regression tests

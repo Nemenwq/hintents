@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/dotandev/hintents/internal/errors"
+	"github.com/dotandev/hintents/internal/rpc"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,6 +18,14 @@ func TestRunnerInterface_CompileTimeCheck(t *testing.T) {
 
 	// This test ensures the interface contract is maintained
 	assert.True(t, true, "Runner implements RunnerInterface")
+}
+
+func TestRPCProvider_CompileTimeCheck(t *testing.T) {
+	// Verify RPCClientAdapter implements RPCProvider at compile time
+	var _ RPCProvider = (*RPCClientAdapter)(nil)
+
+	// This test ensures the interface contract is maintained
+	assert.True(t, true, "RPCClientAdapter implements RPCProvider")
 }
 
 func TestNewRunnerInterface(t *testing.T) {
@@ -52,6 +61,25 @@ func TestExampleUsage(t *testing.T) {
 	assert.Equal(t, "success", resp.Status)
 }
 
+func TestRegressionHarnessWithMockRPC(t *testing.T) {
+	// Create mock implementations
+	mockRunner := &mockRunnerForTest{}
+	mockRPC := &mockRPCProvider{}
+	
+	// Create harness with mocked dependencies
+	harness := NewRegressionHarness(mockRunner, mockRPC, 2)
+	
+	ctx := context.Background()
+	
+	// Test with a mock transaction
+	result := harness.testTransaction(ctx, "test-tx-hash", nil)
+	
+	// Verify the mock was called and results are as expected
+	assert.Equal(t, "test-tx-hash", result.TransactionHash)
+	assert.Equal(t, "pass", result.Status)
+	assert.Empty(t, result.ErrorMessage)
+}
+
 // Simple mock for testing the interface
 type mockRunnerForTest struct{}
 
@@ -64,4 +92,26 @@ func (m *mockRunnerForTest) Run(ctx context.Context, req *SimulationRequest) (*S
 
 func (m *mockRunnerForTest) Close() error {
 	return nil
+}
+
+// Mock RPC provider for testing
+type mockRPCProvider struct{}
+
+func (m *mockRPCProvider) GetTransaction(ctx context.Context, hash string) (*rpc.TransactionResponse, error) {
+	// Return mock transaction data
+	return &rpc.TransactionResponse{
+		Hash:        hash,
+		EnvelopeXdr: "mock-envelope-xdr",
+		ResultXdr:   "mock-result-xdr",
+		ResultMetaXdr: "mock-result-meta-xdr",
+	}, nil
+}
+
+func (m *mockRPCProvider) GetLedgerEntries(ctx context.Context, keys []string) (map[string]string, error) {
+	// Return mock ledger entries
+	entries := make(map[string]string)
+	for _, key := range keys {
+		entries[key] = "mock-ledger-entry-xdr"
+	}
+	return entries, nil
 }

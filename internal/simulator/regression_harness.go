@@ -36,22 +36,22 @@ type RegressionTestSuite struct {
 
 // RegressionHarness manages protocol regression testing against historic transactions
 type RegressionHarness struct {
-	Runner     RunnerInterface
-	RPCClient  *rpc.Client
-	MaxWorkers int
-	Verbose    bool
+	Runner      RunnerInterface
+	RPCProvider RPCProvider
+	MaxWorkers  int
+	Verbose     bool
 }
 
 // NewRegressionHarness creates a new regression test harness
-func NewRegressionHarness(runner RunnerInterface, client *rpc.Client, maxWorkers int) *RegressionHarness {
+func NewRegressionHarness(runner RunnerInterface, rpcProvider RPCProvider, maxWorkers int) *RegressionHarness {
 	if maxWorkers <= 0 {
 		maxWorkers = 4
 	}
 	return &RegressionHarness{
-		Runner:     runner,
-		RPCClient:  client,
-		MaxWorkers: maxWorkers,
-		Verbose:    false,
+		Runner:      runner,
+		RPCProvider: rpcProvider,
+		MaxWorkers:  maxWorkers,
+		Verbose:     false,
 	}
 }
 
@@ -142,14 +142,14 @@ func (h *RegressionHarness) testTransaction(
 		Status:          "error",
 	}
 
-	// Check if RPCClient is available
-	if h.RPCClient == nil {
-		result.ErrorMessage = "RPC client not configured"
+	// Check if RPCProvider is available
+	if h.RPCProvider == nil {
+		result.ErrorMessage = "RPC provider not configured"
 		return result
 	}
 
 	// Fetch transaction details
-	resp, err := h.RPCClient.GetTransaction(ctx, txHash)
+	resp, err := h.RPCProvider.GetTransaction(ctx, txHash)
 	if err != nil {
 		result.ErrorMessage = fmt.Sprintf("failed to fetch transaction: %v", err)
 		return result
@@ -163,7 +163,7 @@ func (h *RegressionHarness) testTransaction(
 	}
 
 	// Fetch ledger entries from network
-	ledgerEntries, err := h.RPCClient.GetLedgerEntries(ctx, keys)
+	ledgerEntries, err := h.RPCProvider.GetLedgerEntries(ctx, keys)
 	if err != nil {
 		result.ErrorMessage = fmt.Sprintf("failed to fetch ledger entries: %v", err)
 		return result

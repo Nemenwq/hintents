@@ -98,22 +98,26 @@ func TestRegressionTestSuite(t *testing.T) {
 func TestNewRegressionHarness(t *testing.T) {
 	t.Run("creates harness with sensible defaults", func(t *testing.T) {
 		mockRunner := &MockRunner{}
-		harness := NewRegressionHarness(mockRunner, nil, 0)
+		mockRPC := &mockRPCProvider{}
+		harness := NewRegressionHarness(mockRunner, mockRPC, 0)
 
 		assert.Equal(t, mockRunner, harness.Runner)
+		assert.Equal(t, mockRPC, harness.RPCProvider)
 		assert.Equal(t, 4, harness.MaxWorkers) // Default worker count
 		assert.False(t, harness.Verbose)
 	})
 
 	t.Run("respects custom worker count", func(t *testing.T) {
-		harness := NewRegressionHarness(&MockRunner{}, nil, 8)
+		mockRPC := &mockRPCProvider{}
+		harness := NewRegressionHarness(&MockRunner{}, mockRPC, 8)
 		assert.Equal(t, 8, harness.MaxWorkers)
 	})
 }
 
 func TestRegressionHarness_RunRegressionTests(t *testing.T) {
 	t.Run("validates count parameter", func(t *testing.T) {
-		harness := NewRegressionHarness(&MockRunner{}, nil, 2)
+		mockRPC := &mockRPCProvider{}
+		harness := NewRegressionHarness(&MockRunner{}, mockRPC, 2)
 
 		suite, err := harness.RunRegressionTests(context.Background(), 0, nil, 0)
 		assert.Error(t, err)
@@ -125,7 +129,8 @@ func TestRegressionHarness_RunRegressionTests(t *testing.T) {
 	})
 
 	t.Run("handles empty transaction list", func(t *testing.T) {
-		harness := NewRegressionHarness(&MockRunner{}, nil, 2)
+		mockRPC := &mockRPCProvider{}
+		harness := NewRegressionHarness(&MockRunner{}, mockRPC, 2)
 
 		suite, err := harness.RunRegressionTests(context.Background(), 10, nil, 0)
 		assert.Error(t, err)
@@ -135,7 +140,7 @@ func TestRegressionHarness_RunRegressionTests(t *testing.T) {
 }
 
 func TestRegressionHarness_TestTransaction(t *testing.T) {
-	t.Run("returns error when RPCClient is nil", func(t *testing.T) {
+	t.Run("returns error when RPCProvider is nil", func(t *testing.T) {
 		mockRunner := &MockRunner{
 			RunFunc: func(ctx context.Context, req *SimulationRequest) (*SimulationResponse, error) {
 				return &SimulationResponse{Status: "error"}, nil
@@ -145,7 +150,7 @@ func TestRegressionHarness_TestTransaction(t *testing.T) {
 
 		result := harness.testTransaction(context.Background(), "invalid", nil)
 
-		// Should have an error message because RPCClient is nil
+		// Should have an error message because RPCProvider is nil
 		assert.NotEmpty(t, result.ErrorMessage)
 		assert.Equal(t, "error", result.Status)
 	})
