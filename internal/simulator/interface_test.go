@@ -100,9 +100,8 @@ type mockRPCProvider struct{}
 func (m *mockRPCProvider) GetTransaction(ctx context.Context, hash string) (*rpc.TransactionResponse, error) {
 	// Return mock transaction data
 	return &rpc.TransactionResponse{
-		Hash:        hash,
-		EnvelopeXdr: "mock-envelope-xdr",
-		ResultXdr:   "mock-result-xdr",
+		EnvelopeXdr:   "mock-envelope-xdr",
+		ResultXdr:     "mock-result-xdr",
 		ResultMetaXdr: "mock-result-meta-xdr",
 	}, nil
 }
